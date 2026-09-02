@@ -8,11 +8,11 @@ from __future__ import annotations
 import tkinter as tk
 from collections import deque
 
-VOLTAGE_COLOR = "#4fc3f7"
-CURRENT_COLOR = "#ffb74d"
-GRID_COLOR = "#2a2a2a"
-AXIS_TEXT_COLOR = "#aaaaaa"
-BG_COLOR = "#111111"
+VOLTAGE_COLOR = "#0288d1"
+CURRENT_COLOR = "#ef6c00"
+GRID_COLOR = "#dddddd"
+AXIS_TEXT_COLOR = "#666666"
+BG_COLOR = "#ffffff"
 
 MARGIN_L = 60
 MARGIN_R = 60

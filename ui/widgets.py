@@ -1,16 +1,178 @@
 """Small touch-friendly widgets shared by the app screens. Finger-sized
-targets (~44px), no hover/tooltip/right-click affordances."""
+targets (~44px), no hover/tooltip/right-click affordances.
+
+Light theme only, by design - see app.py."""
 from __future__ import annotations
 
 import tkinter as tk
 from tkinter import ttk
+from typing import Callable, Optional
 
 FONT_LARGE = ("TkDefaultFont", 18, "bold")
 FONT_MED = ("TkDefaultFont", 13)
 FONT_SMALL = ("TkDefaultFont", 10)
 
+# Shared light palette. Kept here (not duplicated per-file) so the whole
+# app's theme lives in one place.
+BG = "#f2f2f2"            # app/screen background
+PANEL_BG = "#ffffff"      # cards, fields, list rows
+BORDER = "#c9c9c9"
+TEXT = "#1a1a1a"
+TEXT_MUTED = "#5a5a5a"
+BTN_BG = "#e2e2e2"
+BTN_ACTIVE_BG = "#cfcfcf"
+ACCENT_GREEN = "#2e7d32"
+ACCENT_GREEN_ACTIVE = "#388e3c"
+ACCENT_RED = "#c62828"
+ACCENT_RED_ACTIVE = "#d32f2f"
+ACCENT_BLUEGREY = "#546e7a"
+ACCENT_BLUEGREY_ACTIVE = "#62828e"
 
-def big_button(master, text: str, command, bg: str = "#2c2c2c", fg: str = "white") -> tk.Button:
+# Charge vs. discharge background tints (Settings screen mode/phase sections).
+CHARGE_BG = "#e8f5e9"
+CHARGE_ACCENT = "#2e7d32"
+DISCHARGE_BG = "#fff3e0"
+DISCHARGE_ACCENT = "#ef6c00"
+
+
+def configure_ttk_style(root: tk.Tk) -> None:
+    """One-time ttk style setup for touch-sized, light-themed comboboxes.
+    'clam' is used because it's the ttk theme that actually honors color
+    overrides consistently across platforms."""
+    style = ttk.Style(root)
+    style.theme_use("clam")
+    style.configure(
+        "Touch.TCombobox",
+        fieldbackground=PANEL_BG,
+        background=BTN_BG,
+        foreground=TEXT,
+        arrowsize=24,
+        padding=10,
+        font=FONT_MED,
+    )
+    root.option_add("*TCombobox*Listbox.font", FONT_MED)
+    root.option_add("*TCombobox*Listbox.background", PANEL_BG)
+    root.option_add("*TCombobox*Listbox.foreground", TEXT)
+    root.option_add("*TCombobox*Listbox.selectBackground", "#4fc3f7")
+
+
+class Dropdown(ttk.Combobox):
+    """Readonly touch-styled dropdown. `on_change(value)` fires on selection."""
+
+    def __init__(self, master, values: list[str], value: str, on_change: Optional[Callable[[str], None]] = None, **kw):
+        self._var = tk.StringVar(value=value)
+        super().__init__(master, values=values, textvariable=self._var, state="readonly",
+                          style="Touch.TCombobox", font=FONT_MED, **kw)
+        self._on_change = on_change
+        self.bind("<<ComboboxSelected>>", self._fire)
+
+    def _fire(self, _event=None) -> None:
+        if self._on_change is not None:
+            self._on_change(self._var.get())
+
+    def set_value(self, value: str) -> None:
+        self._var.set(value)
+
+    def set_values(self, values: list[str]) -> None:
+        """Change the allowed options in place (e.g. hiding modes a battery
+        preset doesn't support). Does not touch the current selection - the
+        caller decides what to do if it's no longer in `values`."""
+        self.configure(values=values)
+
+    @property
+    def value(self) -> str:
+        return self._var.get()
+
+
+class ToggleButton(tk.Button):
+    """Two-state touch button (e.g. 'Continuous' on/off)."""
+
+    def __init__(self, master, text: str, active: bool = False,
+                 on_change: Optional[Callable[[bool], None]] = None, **kw):
+        self.active = active
+        self._on_change = on_change
+        self._base_text = text
+        super().__init__(master, text=text, command=self._toggle, font=FONT_MED,
+                          relief="flat", padx=18, pady=14, bd=0, **kw)
+        self._refresh()
+
+    def _toggle(self) -> None:
+        self.active = not self.active
+        self._refresh()
+        if self._on_change is not None:
+            self._on_change(self.active)
+
+    def _refresh(self) -> None:
+        if self.active:
+            self.config(bg=ACCENT_GREEN, fg="white", activebackground=ACCENT_GREEN_ACTIVE, activeforeground="white")
+        else:
+            self.config(bg=BTN_BG, fg=TEXT, activebackground=BTN_ACTIVE_BG, activeforeground=TEXT)
+
+
+SELECTED_BG = "#e3f2fd"
+SELECTED_BORDER = "#0288d1"
+
+
+class SelectableButton(tk.Button):
+    """Single-line button that's one of an exclusive-choice group (e.g.
+    Mode). set_selected() shows/clears a highlighted border+tint instead of
+    relying on focus, since a touchscreen has no visible focus ring."""
+
+    def __init__(self, master, text: str, command: Callable[[], None], **kw):
+        super().__init__(master, text=text, command=command, font=FONT_MED,
+                          relief="flat", bd=1, padx=14, pady=14, highlightthickness=2, **kw)
+        self.selected = False
+        self.set_selected(False)
+
+    def set_selected(self, selected: bool) -> None:
+        self.selected = selected
+        if selected:
+            self.config(bg=SELECTED_BG, fg=TEXT, activebackground=SELECTED_BG, activeforeground=TEXT,
+                        highlightbackground=SELECTED_BORDER, highlightcolor=SELECTED_BORDER)
+        else:
+            self.config(bg=PANEL_BG, fg=TEXT, activebackground=BTN_ACTIVE_BG, activeforeground=TEXT,
+                        highlightbackground=BORDER, highlightcolor=BORDER)
+
+
+class PresetButton(tk.Frame):
+    """Two-line touch button for battery preset selection: name on top,
+    voltage info underneath. Frame-based (not tk.Button) so the two lines
+    can use different font weights/sizes; the whole card is clickable."""
+
+    def __init__(self, master, title: str, subtitle: str, command: Callable[[], None], **kw):
+        super().__init__(master, bg=PANEL_BG, bd=1, relief="flat",
+                          highlightthickness=2, highlightbackground=BORDER, **kw)
+        self._command = command
+        self.selected = False
+
+        self.title_label = tk.Label(self, text=title, font=("TkDefaultFont", 12, "bold"), bg=PANEL_BG, fg=TEXT,
+                                     anchor="w", justify="left")
+        self.title_label.pack(fill="x", padx=10, pady=(8, 0))
+        self.subtitle_label = tk.Label(self, text=subtitle, font=FONT_SMALL, bg=PANEL_BG, fg=TEXT_MUTED,
+                                        anchor="w", justify="left")
+        self.subtitle_label.pack(fill="x", padx=10, pady=(0, 8))
+
+        for widget in (self, self.title_label, self.subtitle_label):
+            widget.bind("<Button-1>", self._on_click)
+
+    def _on_click(self, _event=None) -> None:
+        self._command()
+
+    def set_subtitle(self, text: str) -> None:
+        self.subtitle_label.config(text=text)
+
+    def set_selected(self, selected: bool) -> None:
+        self.selected = selected
+        bg = SELECTED_BG if selected else PANEL_BG
+        border = SELECTED_BORDER if selected else BORDER
+        self.config(bg=bg, highlightbackground=border)
+        self.title_label.config(bg=bg)
+        self.subtitle_label.config(bg=bg)
+
+
+def big_button(master, text: str, command, bg: str = BTN_BG, fg: str = TEXT) -> tk.Button:
+    active_bg = BTN_ACTIVE_BG if bg == BTN_BG else bg
+    active_fg = fg
     return tk.Button(
         master,
         text=text,
@@ -18,8 +180,8 @@ def big_button(master, text: str, command, bg: str = "#2c2c2c", fg: str = "white
         font=FONT_MED,
         bg=bg,
         fg=fg,
-        activebackground="#444444",
-        activeforeground="white",
+        activebackground=active_bg,
+        activeforeground=active_fg,
         relief="flat",
         padx=18,
         pady=14,
@@ -27,63 +189,177 @@ def big_button(master, text: str, command, bg: str = "#2c2c2c", fg: str = "white
     )
 
 
-class NumberStepper(tk.Frame):
-    """Label + [-] value [+] control for touch input, with press-and-hold
-    repeat so the user isn't stuck tapping hundreds of times."""
+# Unit-option presets for TouchNumberField/NumpadDialog: each option is
+# (button label, multiplier to convert a typed value into the field's raw
+# base unit). The chosen button both picks the unit AND confirms entry -
+# there's no separate "Accept" button when units are involved.
+CURRENT_UNITS = [("mA", 1), ("A", 1000)]          # raw base unit: mA
+VOLTAGE_UNITS = [("mV", 1), ("V", 1000)]          # raw base unit: mV
+TIME_UNITS = [("Sec", 1 / 60), ("Min", 1)]        # raw base unit: minutes
+PLAIN_UNITS = [("OK", 1)]                          # no unit conversion
 
-    def __init__(self, master, label: str, value: int, step: int, minimum: int, maximum: int, unit: str = "", **kw):
-        super().__init__(master, bg=kw.pop("bg", "#1a1a1a"), **kw)
-        self.value = value
-        self.step = step
+
+def current_field_kwargs() -> dict:
+    return dict(unit_options=CURRENT_UNITS, display_scale=1000, display_decimals=2, display_unit="A")
+
+
+def voltage_field_kwargs() -> dict:
+    return dict(unit_options=VOLTAGE_UNITS, display_scale=1000, display_decimals=2, display_unit="V")
+
+
+def time_field_kwargs() -> dict:
+    return dict(unit_options=TIME_UNITS, display_scale=1, display_decimals=0, display_unit="min")
+
+
+def plain_field_kwargs(unit: str = "") -> dict:
+    return dict(unit_options=PLAIN_UNITS, display_scale=1, display_decimals=0, display_unit=unit)
+
+
+class NumpadDialog(tk.Toplevel):
+    """Modal on-screen number pad. Digits/decimal/backspace/clear build up
+    a typed value; the unit button(s) at the bottom both pick the unit and
+    confirm/accept in one tap (or a single "OK" button when the field has
+    no unit choice).
+
+    Ordering here matters: the window is positioned and made visible BEFORE
+    grab_set()/focus_force() are called. Grabbing input on a window that
+    isn't viewable yet is what caused the whole app to appear to freeze
+    (all input got captured by a dialog that wasn't actually showing/
+    focused) - this is the standard safe sequence for a Tk modal dialog."""
+
+    def __init__(self, master: tk.Misc, title: str, unit_options: list[tuple[str, float]],
+                 on_accept: Callable[[float, float], None]):
+        super().__init__(master, bg=PANEL_BG)
+        self.title(title)
+        self._on_accept = on_accept
+        self._text = ""
+
+        tk.Label(self, text=title, font=FONT_MED, bg=PANEL_BG, fg=TEXT_MUTED).pack(pady=(14, 4))
+        self.display = tk.Label(self, text="0", font=("TkDefaultFont", 28, "bold"), bg=BG, fg=TEXT,
+                                 width=10, anchor="e", padx=10)
+        self.display.pack(padx=14, pady=(0, 10))
+
+        grid = tk.Frame(self, bg=PANEL_BG)
+        grid.pack(padx=14)
+        layout = [
+            [("7", 0, 0), ("8", 0, 1), ("9", 0, 2)],
+            [("4", 1, 0), ("5", 1, 1), ("6", 1, 2)],
+            [("1", 2, 0), ("2", 2, 1), ("3", 2, 2)],
+            [("C", 3, 0), ("0", 3, 1), ("⌫", 3, 2), (".", 3, 3)],
+        ]
+        commands = {"C": self._clear, "⌫": self._backspace}
+        for row in layout:
+            for label, r, c in row:
+                cmd = commands.get(label, lambda d=label: self._digit(d))
+                tk.Button(grid, text=label, command=cmd, font=("TkDefaultFont", 18), bg=BTN_BG, fg=TEXT,
+                          activebackground=BTN_ACTIVE_BG, activeforeground=TEXT, relief="flat", bd=0,
+                          width=4, height=1).grid(row=r, column=c, padx=4, pady=4)
+
+        unit_row = tk.Frame(self, bg=PANEL_BG)
+        unit_row.pack(fill="x", padx=14, pady=(10, 4))
+        for label, scale in unit_options:
+            tk.Button(unit_row, text=label, command=lambda s=scale: self._confirm(s), font=FONT_MED,
+                      bg=ACCENT_GREEN, fg="white", activebackground=ACCENT_GREEN_ACTIVE, activeforeground="white",
+                      relief="flat", bd=0, padx=18, pady=14).pack(side="left", expand=True, fill="x", padx=4)
+
+        tk.Button(self, text="Cancel", command=self.destroy, font=FONT_SMALL, bg=BTN_BG, fg=TEXT,
+                  activebackground=BTN_ACTIVE_BG, activeforeground=TEXT, relief="flat", bd=0,
+                  padx=12, pady=8).pack(pady=(4, 14))
+
+        self.transient(master.winfo_toplevel())
+        self._center_on(master.winfo_toplevel())
+        self.lift()
+        self.focus_force()
+        self.grab_set()
+
+    def _center_on(self, root: tk.Misc) -> None:
+        self.update_idletasks()
+        w, h = self.winfo_reqwidth(), self.winfo_reqheight()
+        rx, ry = root.winfo_rootx(), root.winfo_rooty()
+        rw, rh = root.winfo_width(), root.winfo_height()
+        x = rx + max(0, (rw - w) // 2)
+        y = ry + max(0, (rh - h) // 2)
+        self.geometry(f"{w}x{h}+{x}+{y}")
+
+    def _refresh(self) -> None:
+        self.display.config(text=self._text if self._text else "0")
+
+    def _digit(self, d: str) -> None:
+        if d == "." and "." in self._text:
+            return
+        self._text += d
+        self._refresh()
+
+    def _backspace(self) -> None:
+        self._text = self._text[:-1]
+        self._refresh()
+
+    def _clear(self) -> None:
+        self._text = ""
+        self._refresh()
+
+    def _confirm(self, scale: float) -> None:
+        try:
+            value = float(self._text) if self._text not in ("", ".") else 0.0
+        except ValueError:
+            value = 0.0
+        self._on_accept(value, scale)
+        self.destroy()
+
+
+class TouchNumberField(tk.Frame):
+    """Label + tap-to-edit value (opens NumpadDialog). Stores/reports its
+    value in a fixed raw base unit (e.g. mA, mV, minutes); displays it in a
+    friendlier unit (A, V, min) but lets numpad entry happen in either the
+    base or friendly unit via the dialog's unit buttons."""
+
+    def __init__(self, master, label: str, raw_value: int, minimum: int, maximum: int,
+                 unit_options: list[tuple[str, float]], display_scale: float = 1, display_decimals: int = 0,
+                 display_unit: str = "", on_change: Optional[Callable[[int], None]] = None, **kw):
+        super().__init__(master, bg=kw.pop("bg", BG), **kw)
+        self.raw_value = raw_value
         self.minimum = minimum
         self.maximum = maximum
-        self.unit = unit
-        self._repeat_job = None
+        self.unit_options = unit_options
+        self.display_scale = display_scale
+        self.display_decimals = display_decimals
+        self.display_unit = display_unit
+        self.on_change = on_change
+        self.label_text = label
 
-        tk.Label(self, text=label, font=FONT_SMALL, bg="#1a1a1a", fg="#aaaaaa").pack(anchor="w")
+        tk.Label(self, text=label, font=FONT_SMALL, bg=BG, fg=TEXT_MUTED).pack(anchor="w")
+        self.value_button = tk.Button(self, text=self._display(), command=self._open_numpad, font=FONT_LARGE,
+                                       bg=PANEL_BG, fg=TEXT, activebackground=BTN_ACTIVE_BG, activeforeground=TEXT,
+                                       relief="flat", bd=1, highlightthickness=1, highlightbackground=BORDER,
+                                       padx=16, pady=10)
+        self.value_button.pack(anchor="w", pady=(2, 0))
 
-        row = tk.Frame(self, bg="#1a1a1a")
-        row.pack(fill="x", pady=(2, 0))
+    def _display(self) -> str:
+        val = self.raw_value / self.display_scale
+        return f"{val:.{self.display_decimals}f} {self.display_unit}".strip()
 
-        minus = big_button(row, "-", None, bg="#333333")
-        minus.pack(side="left")
-        minus.bind("<ButtonPress-1>", lambda e: self._start_repeat(-1))
-        minus.bind("<ButtonRelease-1>", lambda e: self._stop_repeat())
+    def _open_numpad(self) -> None:
+        NumpadDialog(self, self.label_text, self.unit_options, self._on_numpad_accept)
 
-        self.value_label = tk.Label(row, text=self._text(), font=FONT_LARGE, bg="#1a1a1a", fg="white", width=8)
-        self.value_label.pack(side="left", padx=8)
+    def _on_numpad_accept(self, value: float, scale: float) -> None:
+        self.set_value(int(round(value * scale)))
 
-        plus = big_button(row, "+", None, bg="#333333")
-        plus.pack(side="left")
-        plus.bind("<ButtonPress-1>", lambda e: self._start_repeat(1))
-        plus.bind("<ButtonRelease-1>", lambda e: self._stop_repeat())
+    def set_value(self, raw_value: int) -> None:
+        self.raw_value = max(self.minimum, min(self.maximum, raw_value))
+        self.value_button.config(text=self._display())
+        if self.on_change is not None:
+            self.on_change(self.raw_value)
 
-    def _text(self) -> str:
-        return f"{self.value} {self.unit}".strip()
-
-    def _apply(self, direction: int) -> None:
-        self.value = max(self.minimum, min(self.maximum, self.value + direction * self.step))
-        self.value_label.config(text=self._text())
-
-    def _start_repeat(self, direction: int) -> None:
-        self._apply(direction)
-        self._repeat_job = self.after(350, lambda: self._repeat(direction))
-
-    def _repeat(self, direction: int) -> None:
-        self._apply(direction)
-        self._repeat_job = self.after(120, lambda: self._repeat(direction))
-
-    def _stop_repeat(self) -> None:
-        if self._repeat_job is not None:
-            self.after_cancel(self._repeat_job)
-            self._repeat_job = None
+    def set_range(self, minimum: int, maximum: int) -> None:
+        self.minimum, self.maximum = minimum, maximum
+        self.set_value(self.raw_value)
 
 
 class ReadoutTile(tk.Frame):
     def __init__(self, master, label: str, **kw):
-        super().__init__(master, bg="#1a1a1a", **kw)
-        tk.Label(self, text=label, font=FONT_SMALL, bg="#1a1a1a", fg="#aaaaaa").pack(anchor="w", padx=10, pady=(8, 0))
-        self.value_label = tk.Label(self, text="--", font=FONT_LARGE, bg="#1a1a1a", fg="white")
+        super().__init__(master, bg=PANEL_BG, **kw)
+        tk.Label(self, text=label, font=FONT_SMALL, bg=PANEL_BG, fg=TEXT_MUTED).pack(anchor="w", padx=10, pady=(8, 0))
+        self.value_label = tk.Label(self, text="--", font=FONT_LARGE, bg=PANEL_BG, fg=TEXT)
         self.value_label.pack(anchor="w", padx=10, pady=(0, 8))
 
     def set(self, text: str) -> None:

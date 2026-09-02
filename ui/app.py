@@ -1,17 +1,28 @@
 from __future__ import annotations
 
 import queue
+import time
 import tkinter as tk
-from tkinter import ttk
 
+from ebc import config as cfgmod
 from ebc.device import EbcDevice
 from ebc.mock_device import MockEbcDevice
+from ebc.sequencer import AutoCycleController
 
 from .graph import DualLineGraph
-from .widgets import NumberStepper, ReadoutTile, big_button
-
-BG = "#0d0d0d"
-PANEL_BG = "#1a1a1a"
+from .settings_screen import SettingsScreen
+from .widgets import (
+    ACCENT_BLUEGREY,
+    ACCENT_GREEN,
+    ACCENT_RED,
+    BG,
+    BTN_BG,
+    TEXT,
+    TEXT_MUTED,
+    ReadoutTile,
+    big_button,
+    configure_ttk_style,
+)
 
 # JRP7006 is a 1024x600 landscape touchscreen; default to that but always
 # read the real screen size at runtime so this also runs windowed on a dev
@@ -26,15 +37,19 @@ class App(tk.Tk):
         self.configure(bg=BG)
         self.geometry(f"{DEFAULT_W}x{DEFAULT_H}")
 
+        configure_ttk_style(self)
+
         self.device = None
         self._connect_thread = None
+        self.test_config = cfgmod.TestConfig()
 
         self.container = tk.Frame(self, bg=BG)
         self.container.pack(fill="both", expand=True)
 
         self.connect_screen = ConnectScreen(self.container, self)
         self.main_screen = MainScreen(self.container, self)
-        for screen in (self.connect_screen, self.main_screen):
+        self.settings_screen = SettingsScreen(self.container, self)
+        for screen in (self.connect_screen, self.main_screen, self.settings_screen):
             screen.place(relx=0, rely=0, relwidth=1, relheight=1)
 
         self.bind("<Escape>", lambda e: self._toggle_fullscreen(False))
@@ -54,6 +69,10 @@ class App(tk.Tk):
         self.main_screen.lift()
         self.main_screen.on_shown()
 
+    def show_settings(self) -> None:
+        self.settings_screen.on_shown()
+        self.settings_screen.lift()
+
     def set_device(self, device) -> None:
         self.device = device
 
@@ -64,52 +83,45 @@ class ConnectScreen(tk.Frame):
         self.app = app
 
         tk.Label(self, text="EBC-A20 Battery Tester", font=("TkDefaultFont", 22, "bold"),
-                 bg=BG, fg="white").pack(pady=(30, 6))
-        tk.Label(self, text="Select a serial port and connect", font=("TkDefaultFont", 12),
-                 bg=BG, fg="#aaaaaa").pack(pady=(0, 20))
+                 bg=BG, fg=TEXT).pack(pady=(30, 6))
+        tk.Label(self, text="Tap a port to connect", font=("TkDefaultFont", 12),
+                 bg=BG, fg=TEXT_MUTED).pack(pady=(0, 20))
 
         body = tk.Frame(self, bg=BG)
         body.pack(expand=True)
 
-        self.port_list = tk.Listbox(body, font=("TkDefaultFont", 13), height=8, width=36,
-                                     bg=PANEL_BG, fg="white", selectbackground="#4fc3f7",
-                                     activestyle="none", bd=0, highlightthickness=1,
-                                     highlightbackground="#333333")
-        self.port_list.grid(row=0, column=0, columnspan=2, pady=(0, 12))
+        self.ports_container = tk.Frame(body, bg=BG, width=360)
+        self.ports_container.pack(fill="x")
 
-        big_button(body, "Refresh Ports", self.refresh_ports).grid(row=1, column=0, padx=6, sticky="ew")
-        big_button(body, "Connect", self.connect, bg="#2e7d32").grid(row=1, column=1, padx=6, sticky="ew")
+        big_button(body, "Refresh Ports", self.refresh_ports).pack(fill="x", pady=(8, 0))
+        big_button(body, "Use Simulator (no hardware)", self.connect_simulator, bg=ACCENT_BLUEGREY, fg="white") \
+            .pack(fill="x", pady=(16, 0))
 
-        big_button(body, "Use Simulator (no hardware)", self.connect_simulator, bg="#455a64") \
-            .grid(row=2, column=0, columnspan=2, pady=(16, 0), sticky="ew")
-
-        self.status_label = tk.Label(self, text="", font=("TkDefaultFont", 11), bg=BG, fg="#ef5350")
+        self.status_label = tk.Label(self, text="", font=("TkDefaultFont", 11), bg=BG, fg="#c62828")
         self.status_label.pack(pady=14)
 
         self.refresh_ports()
 
     def refresh_ports(self) -> None:
-        self.port_list.delete(0, tk.END)
-        for p in EbcDevice.list_ports():
-            self.port_list.insert(tk.END, p)
-        if self.port_list.size() == 0:
-            self.port_list.insert(tk.END, "(no serial ports found)")
+        for child in self.ports_container.winfo_children():
+            child.destroy()
+        ports = EbcDevice.list_ports()
+        if not ports:
+            tk.Label(self.ports_container, text="(no serial ports found)", font=("TkDefaultFont", 12),
+                     bg=BG, fg=TEXT_MUTED).pack(pady=6)
+            return
+        for p in ports:
+            big_button(self.ports_container, p, lambda port=p: self.connect_to(port), bg=BTN_BG, fg=TEXT) \
+                .pack(fill="x", pady=4)
 
-    def connect(self) -> None:
-        sel = self.port_list.curselection()
-        if not sel:
-            self.status_label.config(text="Select a port first.")
-            return
-        port = self.port_list.get(sel[0])
-        if port.startswith("("):
-            return
-        self.status_label.config(text=f"Connecting to {port}...", fg="#aaaaaa")
+    def connect_to(self, port: str) -> None:
+        self.status_label.config(text=f"Connecting to {port}...", fg=TEXT_MUTED)
         self.update_idletasks()
         device = EbcDevice()
         try:
             device.connect(port)
         except Exception as exc:
-            self.status_label.config(text=f"Connection failed: {exc}", fg="#ef5350")
+            self.status_label.config(text=f"Connection failed: {exc}", fg="#c62828")
             return
         self.app.set_device(device)
         self.status_label.config(text="")
@@ -134,12 +146,12 @@ class MainScreen(tk.Frame):
 
         top = tk.Frame(self, bg=BG)
         top.pack(fill="x", padx=10, pady=(8, 4))
-        tk.Label(top, text="EBC-A20", font=("TkDefaultFont", 14, "bold"), bg=BG, fg="white").pack(side="left")
-        self.status_dot = tk.Label(top, text="●", font=("TkDefaultFont", 14), bg=BG, fg="#66bb6a")
+        tk.Label(top, text="EBC-A20", font=("TkDefaultFont", 14, "bold"), bg=BG, fg=TEXT).pack(side="left")
+        self.status_dot = tk.Label(top, text="●", font=("TkDefaultFont", 14), bg=BG, fg="#2e7d32")
         self.status_dot.pack(side="left", padx=(8, 0))
-        self.status_text = tk.Label(top, text="Connected", font=("TkDefaultFont", 12), bg=BG, fg="#aaaaaa")
+        self.status_text = tk.Label(top, text="Connected", font=("TkDefaultFont", 12), bg=BG, fg=TEXT_MUTED)
         self.status_text.pack(side="left", padx=(4, 0))
-        big_button(top, "Disconnect", self.disconnect, bg="#b71c1c").pack(side="right")
+        big_button(top, "Disconnect", self.disconnect, bg=ACCENT_RED, fg="white").pack(side="right")
 
         self.graph = DualLineGraph(self, history_seconds=300)
         self.graph.pack(fill="both", expand=True, padx=10, pady=4)
@@ -157,22 +169,32 @@ class MainScreen(tk.Frame):
         controls = tk.Frame(self, bg=BG)
         controls.pack(fill="x", padx=10, pady=(4, 10))
 
-        self.current_stepper = NumberStepper(controls, "DISCHARGE CURRENT", 1000, 100, 50, 20000, "mA")
-        self.current_stepper.pack(side="left", padx=(0, 20))
-        self.cutoff_stepper = NumberStepper(controls, "CUTOFF VOLTAGE", 3000, 50, 1000, 30000, "mV")
-        self.cutoff_stepper.pack(side="left", padx=(0, 20))
+        mode_info = tk.Frame(controls, bg=BG)
+        mode_info.pack(side="left", fill="x", expand=True)
+        self.mode_label = tk.Label(mode_info, text="", font=("TkDefaultFont", 13, "bold"), bg=BG, fg=TEXT)
+        self.mode_label.pack(anchor="w")
+        self.sequencer_label = tk.Label(mode_info, text="", font=("TkDefaultFont", 11), bg=BG, fg="#0277bd")
+        self.sequencer_label.pack(anchor="w")
 
         btns = tk.Frame(controls, bg=BG)
         btns.pack(side="right")
-        big_button(btns, "Start Discharge", self.start_discharge, bg="#2e7d32").pack(side="left", padx=6)
-        big_button(btns, "Stop", self.stop_discharge, bg="#b71c1c").pack(side="left", padx=6)
+        big_button(btns, "Configure", self.open_settings, bg=ACCENT_BLUEGREY, fg="white").pack(side="left", padx=6)
+        big_button(btns, "Start", self.start_test, bg=ACCENT_GREEN, fg="white").pack(side="left", padx=6)
+        big_button(btns, "Stop", self.stop_test, bg=ACCENT_RED, fg="white").pack(side="left", padx=6)
+
+        self.sequencer: AutoCycleController | None = None
 
     def on_shown(self) -> None:
         self._cancel_loops()
         self._t0 = None
         self.graph.clear()
+        self.mode_label.config(text=self.app.test_config.summary())
+        self.sequencer_label.config(text="")
         self._poll_job = self.after(self.POLL_MS, self._drain_queue)
         self._redraw_job = self.after(self.REDRAW_MS, self._redraw_loop)
+
+    def open_settings(self) -> None:
+        self.app.show_settings()
 
     def _cancel_loops(self) -> None:
         for attr in ("_poll_job", "_redraw_job"):
@@ -194,8 +216,14 @@ class MainScreen(tk.Frame):
             pass
 
         if not getattr(device, "connected", True):
-            self.status_dot.config(fg="#ef5350")
+            self.status_dot.config(fg="#c62828")
             self.status_text.config(text=device.last_error or "Disconnected")
+
+        if self.sequencer is not None:
+            self.sequencer.tick(time.monotonic())
+            self.sequencer_label.config(text=self.sequencer.status_text(time.monotonic()))
+            if self.sequencer.finished:
+                self.sequencer = None
 
         self._poll_job = self.after(self.POLL_MS, self._drain_queue)
 
@@ -203,10 +231,12 @@ class MainScreen(tk.Frame):
         if self._t0 is None:
             self._t0 = sample.timestamp
         self.graph.add_sample(sample.timestamp - self._t0, sample.voltage_v, sample.current_a)
-        self.tile_voltage.set(f"{sample.voltage_v:.3f} V")
+        self.tile_voltage.set(f"{sample.voltage_v:.2f} V")
         self.tile_current.set(f"{sample.current_a:.3f} A")
         self.tile_capacity.set(f"{sample.capacity_mah} mAh")
         self.tile_status.set(sample.status_text)
+        if self.sequencer is not None:
+            self.sequencer.on_sample(sample)
 
     def _redraw_loop(self) -> None:
         if self.app.device is None:
@@ -215,22 +245,38 @@ class MainScreen(tk.Frame):
         self.graph.redraw()
         self._redraw_job = self.after(self.REDRAW_MS, self._redraw_loop)
 
-    def start_discharge(self) -> None:
+    def start_test(self) -> None:
         device = self.app.device
         if device is None:
             return
-        device.start_discharge(self.current_stepper.value, self.cutoff_stepper.value)
+        cfg = self.app.test_config
+        self.mode_label.config(text=cfg.summary())
+        if cfg.mode == cfgmod.MODE_DSC_CC:
+            device.start_discharge_cc(cfg.dsc_cc_current_ma, cfg.dsc_cc_cutoff_mv, cfg.dsc_cc_time_min)
+        elif cfg.mode == cfgmod.MODE_DSC_CP:
+            device.start_discharge_cp(cfg.dsc_cp_power_w, cfg.dsc_cp_cutoff_mv, cfg.dsc_cp_time_min)
+        elif cfg.mode == cfgmod.MODE_CHG_CV:
+            device.start_charge_cv(cfg.chg_cv_current_ma, cfg.chg_cv_voltage_mv, cfg.chg_cv_cutoff_ma)
+        elif cfg.mode == cfgmod.MODE_REPEAT:
+            self.sequencer = AutoCycleController(device, cfg, time.monotonic())
+            self.sequencer_label.config(text=self.sequencer.status_text(time.monotonic()))
 
-    def stop_discharge(self) -> None:
+    def stop_test(self) -> None:
         device = self.app.device
         if device is None:
             return
-        device.stop_discharge()
+        if self.sequencer is not None:
+            self.sequencer.stop()
+            self.sequencer_label.config(text=self.sequencer.status_text(time.monotonic()))
+            self.sequencer = None
+        else:
+            device.stop()
 
     def disconnect(self) -> None:
         device = self.app.device
         if device is not None:
             device.disconnect()
         self.app.set_device(None)
+        self.sequencer = None
         self._cancel_loops()
         self.app.show_connect()

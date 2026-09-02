@@ -9,14 +9,18 @@ framing/checksum/value-encoding but DISAGREE on serial parity:
   - https://github.com/Kazhuu/ebc-battery-tester (FRAMES.md / REVERSE_ENGINEERING.md)
     -> 9600 baud, 8E1 (EVEN parity), CH340 adapter (VID 0x1A86 / PID 0x7523)
 
-This has NOT been verified against real hardware. PARITY below defaults to
-EVEN (the more thoroughly documented source). If connecting to a real unit
-produces no valid frames / constant checksum failures, try ODD first.
+Verified against real hardware: EVEN parity, framing, checksum, and base240
+decoding all check out - the device connects and produces valid frames.
 
-Byte-level details (frame markers, base240 encoding, checksum algorithm,
-command/status codes, CC-discharge frame layout) are cross-confirmed by both
-sources including a worked example frame, so those are on firmer footing
-than the parity setting.
+One correction found against real hardware: the live status frame's voltage
+field (payload[3:4]) is NOT x10 like the docs' scaling table implied - it's
+just decode_base240() directly in mV. The docs' "Voltage: mV / 10" scaling
+table entry describes the SET-command encoding (host -> device), not this
+live-readback field; conflating the two was the bug. current_ma
+(payload[1:2]) still uses the x10 decode and hasn't been independently
+re-checked against a multimeter/known load - if displayed current also
+looks off by a clean factor (10x, or missing entirely), check that decode
+next using the same method that caught the voltage bug.
 """
 from __future__ import annotations
 
@@ -44,18 +48,43 @@ CMD_STOP = 0x02
 CMD_DISCH_CC_START = 0x01
 CMD_DISCH_CC_ADJUST = 0x07
 CMD_DISCH_CC_CONTINUE = 0x08
+CMD_DISCH_CP_START = 0x11
+CMD_DISCH_CP_CONTINUE = 0x18
+CMD_CHG_CV_START = 0x21
+CMD_CHG_CV_CONTINUE = 0x28
+# CONTINUE variants resume an in-progress test (e.g. after a parameter
+# tweak) without resetting accumulated capacity. Not used by this UI - it
+# only ever sends START, matching the current no-live-adjustment scope.
 
-# --- device -> host status byte (CC discharge mode) ----------------------
+# --- device -> host status byte -------------------------------------------
 STATUS_TEXT = {
+    # CC discharge
     0x00: "Idle",
     0x0A: "Discharging",
     0x14: "Finished",
+    # CP discharge
+    0x01: "Idle",
+    0x0B: "Discharging (CP)",
+    0x15: "Finished",
+    # CV charge
+    0x02: "Idle",
+    0x0C: "Charging",
+    0x16: "Finished",
+    # firmware report, first ~15s after CONNECT
     0x64: "Idle (last: CC discharge)",
     0x65: "Idle (last: CP discharge)",
     0x66: "Idle (last: CV charge)",
     0x6E: "Discharging (CC)",
     0x6F: "Discharging (CP)",
     0x70: "Charging (CV)",
+}
+
+# Status code that means "this leg is done", per mode - used by the repeat
+# sequencer to know when to advance to the next leg.
+FINISHED_STATUS = {
+    "DSC_CC": 0x14,
+    "DSC_CP": 0x15,
+    "CHG_CV": 0x16,
 }
 
 
@@ -118,7 +147,7 @@ def parse_status_frame(payload: bytes) -> Optional[Sample]:
 
     status = payload[0]
     current_ma = decode_base240(payload[1], payload[2]) * 10
-    voltage_mv = decode_base240(payload[3], payload[4]) * 10
+    voltage_mv = decode_base240(payload[3], payload[4])  # confirmed against real hardware: no x10 here
     capacity_mah = decode_base240(payload[5], payload[6])
     device_type = payload[15]
 

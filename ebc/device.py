@@ -68,10 +68,16 @@ class EbcDevice:
             self._ser.close()
         self.connected = False
 
-    def start_discharge(self, current_ma: int, cutoff_mv: int, time_limit_min: int = 0) -> None:
+    def start_discharge_cc(self, current_ma: int, cutoff_mv: int, time_limit_min: int = 0) -> None:
         self._send(protocol.CMD_DISCH_CC_START, current_ma // 10, cutoff_mv // 10, time_limit_min)
 
-    def stop_discharge(self) -> None:
+    def start_discharge_cp(self, power_w: int, cutoff_mv: int, time_limit_min: int = 0) -> None:
+        self._send(protocol.CMD_DISCH_CP_START, power_w, cutoff_mv // 10, time_limit_min)
+
+    def start_charge_cv(self, current_ma: int, voltage_mv: int, cutoff_current_ma: int) -> None:
+        self._send(protocol.CMD_CHG_CV_START, current_ma // 10, voltage_mv // 10, cutoff_current_ma // 10)
+
+    def stop(self) -> None:
         self._send(protocol.CMD_STOP)
 
     def _send(self, cmd: int, p1: int = 0, p2: int = 0, p3: int = 0) -> None:
