@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import queue
 import time
 import tkinter as tk
@@ -52,9 +53,17 @@ class App(tk.Tk):
         for screen in (self.connect_screen, self.main_screen, self.settings_screen):
             screen.place(relx=0, rely=0, relwidth=1, relheight=1)
 
-        self.bind("<Escape>", lambda e: self._toggle_fullscreen(False))
-        self.bind("<F11>", lambda e: self._toggle_fullscreen())
         self._fullscreen = False
+
+        if os.environ.get("EBC_KIOSK"):
+            self.config(cursor="none")
+            self._toggle_fullscreen(True)
+        else:
+            # Only bound outside kiosk mode: with no window manager on the Pi,
+            # un-fullscreening leaves a titlebar-less window with no way to
+            # move or close it.
+            self.bind("<Escape>", lambda e: self._toggle_fullscreen(False))
+            self.bind("<F11>", lambda e: self._toggle_fullscreen())
 
         self.show_connect()
 

@@ -1,0 +1,14 @@
+#!/bin/sh
+# Installed as ~/.xinitrc by install.sh, with @INSTALL_DIR@ substituted for
+# the actual project path. Launched by the startx loop in
+# profile-kiosk-block once appended to ~/.profile.
+
+xset s off
+xset -dpms
+xset s noblank
+
+export EBC_KIOSK=1
+
+# systemd-cat so a startup crash shows up in `journalctl -t ebc-kiosk`
+# instead of just leaving a black screen with nothing to debug.
+exec systemd-cat -t ebc-kiosk python3 "@INSTALL_DIR@/main.py"

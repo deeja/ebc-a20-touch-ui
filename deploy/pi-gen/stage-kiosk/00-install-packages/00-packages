@@ -1,0 +1,5 @@
+python3-tk
+python3-serial
+xserver-xorg
+xinit
+x11-xserver-utils

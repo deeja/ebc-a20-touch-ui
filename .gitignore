@@ -1,1 +1,8 @@
 __pycache__/
+
+# pi-gen build: holds a plaintext password, and gets populated with a full
+# copy of the repo at build time - see deploy/pi-gen/config.example.
+deploy/pi-gen/config
+deploy/pi-gen/stage-kiosk/01-copy-app/files/app/*
+!deploy/pi-gen/stage-kiosk/01-copy-app/files/app/.gitkeep
+deploy/pi-gen/stage-kiosk/02-configure-kiosk/files/
