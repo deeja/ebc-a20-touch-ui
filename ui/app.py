@@ -159,11 +159,10 @@ class MainScreen(tk.Frame):
 
         top = tk.Frame(self, bg=BG)
         top.pack(fill="x", padx=10, pady=(8, 4))
-        tk.Label(top, text="EBC-A20", font=("TkDefaultFont", 14, "bold"), bg=BG, fg=TEXT).pack(side="left")
-        self.status_dot = tk.Label(top, text="●", font=("TkDefaultFont", 14), bg=BG, fg="#2e7d32")
-        self.status_dot.pack(side="left", padx=(8, 0))
-        self.status_text = tk.Label(top, text="Connected", font=("TkDefaultFont", 12), bg=BG, fg=TEXT_MUTED)
-        self.status_text.pack(side="left", padx=(4, 0))
+        self.battery_label = tk.Label(top, text="", font=("TkDefaultFont", 12, "bold"), bg=BG, fg=TEXT)
+        self.battery_label.pack(side="left")
+        self.mode_label = tk.Label(top, text="", font=("TkDefaultFont", 12), bg=BG, fg=TEXT_MUTED)
+        self.mode_label.pack(side="left", padx=(14, 0))
 
         # side="right" packs each new button to the left of the previous
         # one, so pack in reverse of the desired left-to-right order to get
@@ -176,13 +175,8 @@ class MainScreen(tk.Frame):
         self.configure_btn = big_button(top, "Configure", self.open_settings, bg=ACCENT_BLUEGREY, fg="white")
         self.configure_btn.pack(side="right", padx=(0, 6))
 
-        self.battery_label = tk.Label(self, text="", font=("TkDefaultFont", 12, "bold"), bg=BG, fg=TEXT)
-        self.battery_label.pack(anchor="w", padx=10, pady=(0, 2))
-
         mode_info = tk.Frame(self, bg=BG)
         mode_info.pack(fill="x", padx=10, pady=(0, 4))
-        self.mode_label = tk.Label(mode_info, text="", font=("TkDefaultFont", 11), bg=BG, fg=TEXT_MUTED)
-        self.mode_label.pack(anchor="w")
         # Not packed here: these only take up space (and are only packed)
         # while they actually have something to say, so an idle screen
         # doesn't reserve blank lines the graph could otherwise fill.
@@ -273,8 +267,12 @@ class MainScreen(tk.Frame):
             pass
 
         if not getattr(device, "connected", True):
-            self.status_dot.config(fg="#c62828")
-            self.status_text.config(text=device.last_error or "Disconnected")
+            self.app.connect_screen.status_label.config(
+                text=f"Disconnected: {device.last_error}" if device.last_error else "Device disconnected",
+                fg="#c62828",
+            )
+            self.disconnect()
+            return
 
         if self.sequencer is not None:
             self.sequencer.tick(time.monotonic())
