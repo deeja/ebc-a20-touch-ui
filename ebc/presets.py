@@ -94,3 +94,19 @@ def pack_voltages_mv(preset_key: str, cells: int) -> tuple[Optional[int], int]:
     charge_mv = preset.cell_charge_mv * cells if preset.cell_charge_mv else None
     cutoff_mv = preset.cell_cutoff_mv * cells
     return charge_mv, cutoff_mv
+
+
+def describe(preset_key: str, cell_count: int) -> str:
+    """Human-readable summary of a configured battery - preset, series-cell
+    count (for per-cell chemistries), and the resulting charge/cutoff
+    voltages. Shared by the Settings screen title and the main screen's
+    battery-configuration summary."""
+    preset = PRESETS[preset_key]
+    if preset_key == "custom":
+        return "Custom / Manual"
+    cells = cell_count if preset.per_cell else 1
+    charge_mv, cutoff_mv = pack_voltages_mv(preset_key, cells)
+    cell_suffix = f" {cells}S" if preset.per_cell else ""
+    if charge_mv is not None:
+        return f"{preset.label}{cell_suffix} - {charge_mv / 1000:.2f}V chg -> {cutoff_mv / 1000:.2f}V cut"
+    return f"{preset.label}{cell_suffix} - {cutoff_mv / 1000:.2f}V cutoff (discharge only)"

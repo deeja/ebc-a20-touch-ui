@@ -48,7 +48,8 @@ class SettingsScreen(tk.Frame):
 
         top = tk.Frame(self, bg=BG)
         top.pack(fill="x", padx=10, pady=(8, 4))
-        tk.Label(top, text="Configure", font=("TkDefaultFont", 16, "bold"), bg=BG, fg=TEXT).pack(side="left")
+        self.title_label = tk.Label(top, text="Configure", font=("TkDefaultFont", 16, "bold"), bg=BG, fg=TEXT)
+        self.title_label.pack(side="left")
         big_button(top, "Cancel", self._cancel, bg=BTN_BG, fg=TEXT).pack(side="right")
         big_button(top, "OK", self._save, bg=ACCENT_GREEN, fg="white").pack(side="right", padx=(0, 8))
 
@@ -64,14 +65,11 @@ class SettingsScreen(tk.Frame):
         for c in range(PRESET_GRID_COLS):
             battery_grid.grid_columnconfigure(c, weight=1)
 
-        cell_row = tk.Frame(self, bg=BG)
-        cell_row.pack(fill="x", padx=10, pady=(4, 0))
-        self.cell_field = TouchNumberField(cell_row, "CELLS IN SERIES", 1, 1, 1,
-                                            on_change=self._on_cells_changed, bg=BG,
-                                            **plain_field_kwargs(""))
-
         mode_button_row = tk.Frame(self, bg=BG)
         mode_button_row.pack(fill="x", padx=10, pady=(8, 4))
+        self.cell_field = TouchNumberField(mode_button_row, "CELLS IN SERIES", 1, 1, 1,
+                                            on_change=self._on_cells_changed, bg=BG,
+                                            **plain_field_kwargs(""))
         self.mode_buttons: dict[str, SelectableButton] = {}
         for m in cfgmod.MODE_ORDER:
             btn = SelectableButton(mode_button_row, cfgmod.MODE_LABELS[m],
@@ -203,6 +201,10 @@ class SettingsScreen(tk.Frame):
 
         self._sync_fields_from_cfg()
         self._update_mode_options()
+        self._update_title()
+
+    def _update_title(self) -> None:
+        self.title_label.config(text=f"Configure - {presets.describe(self.cfg.preset_key, self.cfg.cell_count)}")
 
     def _on_mode_selected(self, mode: str) -> None:
         self.cfg.mode = mode
@@ -252,6 +254,7 @@ class SettingsScreen(tk.Frame):
 
     def _save(self) -> None:
         self.app.test_config = self.cfg
+        self.app.is_configured = True
         self.app.show_main()
 
     def _cancel(self) -> None:

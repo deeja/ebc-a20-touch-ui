@@ -87,6 +87,16 @@ FINISHED_STATUS = {
     "CHG_CV": 0x16,
 }
 
+# Status codes that mean the device is actively discharging/charging right
+# now - used by the UI to know a test is running, including one that was
+# already in progress on the device before this app connected (see the
+# 0x6E-0x70 codes above).
+ACTIVE_STATUS_CODES = {0x0A, 0x0B, 0x0C, 0x6E, 0x6F, 0x70}
+
+
+def is_active_status(code: int) -> bool:
+    return code in ACTIVE_STATUS_CODES
+
 
 def encode_base240(value: int) -> tuple[int, int]:
     value = max(0, int(round(value)))

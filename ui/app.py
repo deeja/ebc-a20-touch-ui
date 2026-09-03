@@ -6,6 +6,8 @@ import time
 import tkinter as tk
 
 from ebc import config as cfgmod
+from ebc import presets
+from ebc import protocol
 from ebc.device import EbcDevice
 from ebc.mock_device import MockEbcDevice
 from ebc.sequencer import AutoCycleController
@@ -43,6 +45,7 @@ class App(tk.Tk):
         self.device = None
         self._connect_thread = None
         self.test_config = cfgmod.TestConfig()
+        self.is_configured = False
 
         self.container = tk.Frame(self, bg=BG)
         self.container.pack(fill="both", expand=True)
@@ -152,6 +155,7 @@ class MainScreen(tk.Frame):
         super().__init__(master, bg=BG)
         self.app = app
         self._t0 = None
+        self._last_sample = None
 
         top = tk.Frame(self, bg=BG)
         top.pack(fill="x", padx=10, pady=(8, 4))
@@ -160,13 +164,37 @@ class MainScreen(tk.Frame):
         self.status_dot.pack(side="left", padx=(8, 0))
         self.status_text = tk.Label(top, text="Connected", font=("TkDefaultFont", 12), bg=BG, fg=TEXT_MUTED)
         self.status_text.pack(side="left", padx=(4, 0))
+
+        # side="right" packs each new button to the left of the previous
+        # one, so pack in reverse of the desired left-to-right order to get
+        # Configure / Start / Stop / Disconnect.
         big_button(top, "Disconnect", self.disconnect, bg=ACCENT_RED, fg="white").pack(side="right")
+        self.stop_btn = big_button(top, "Stop", self.stop_test, bg=ACCENT_RED, fg="white")
+        self.stop_btn.pack(side="right", padx=(0, 6))
+        self.start_btn = big_button(top, "Start", self.start_test, bg=ACCENT_GREEN, fg="white")
+        self.start_btn.pack(side="right", padx=(0, 6))
+        self.configure_btn = big_button(top, "Configure", self.open_settings, bg=ACCENT_BLUEGREY, fg="white")
+        self.configure_btn.pack(side="right", padx=(0, 6))
 
-        self.graph = DualLineGraph(self, history_seconds=300)
-        self.graph.pack(fill="both", expand=True, padx=10, pady=4)
+        self.battery_label = tk.Label(self, text="", font=("TkDefaultFont", 12, "bold"), bg=BG, fg=TEXT)
+        self.battery_label.pack(anchor="w", padx=10, pady=(0, 2))
 
+        mode_info = tk.Frame(self, bg=BG)
+        mode_info.pack(fill="x", padx=10, pady=(0, 4))
+        self.mode_label = tk.Label(mode_info, text="", font=("TkDefaultFont", 11), bg=BG, fg=TEXT_MUTED)
+        self.mode_label.pack(anchor="w")
+        # Not packed here: these only take up space (and are only packed)
+        # while they actually have something to say, so an idle screen
+        # doesn't reserve blank lines the graph could otherwise fill.
+        self.sequencer_label = tk.Label(mode_info, text="", font=("TkDefaultFont", 11), bg=BG, fg="#0277bd")
+        self.warning_label = tk.Label(mode_info, text="", font=("TkDefaultFont", 11, "bold"), bg=BG, fg=ACCENT_RED)
+
+        # Readouts are pinned to the bottom (packed with side="bottom" before
+        # the graph is packed) so the graph - packed last with expand=True -
+        # fills whatever vertical space is left between the top info block
+        # and the readouts, instead of the readouts trailing the graph.
         readouts = tk.Frame(self, bg=BG)
-        readouts.pack(fill="x", padx=10, pady=4)
+        readouts.pack(side="bottom", fill="x", padx=10, pady=(4, 10))
         self.tile_voltage = ReadoutTile(readouts, "VOLTAGE")
         self.tile_current = ReadoutTile(readouts, "CURRENT")
         self.tile_capacity = ReadoutTile(readouts, "CAPACITY")
@@ -175,32 +203,52 @@ class MainScreen(tk.Frame):
             tile.grid(row=0, column=i, sticky="ew", padx=4)
             readouts.grid_columnconfigure(i, weight=1)
 
-        controls = tk.Frame(self, bg=BG)
-        controls.pack(fill="x", padx=10, pady=(4, 10))
-
-        mode_info = tk.Frame(controls, bg=BG)
-        mode_info.pack(side="left", fill="x", expand=True)
-        self.mode_label = tk.Label(mode_info, text="", font=("TkDefaultFont", 13, "bold"), bg=BG, fg=TEXT)
-        self.mode_label.pack(anchor="w")
-        self.sequencer_label = tk.Label(mode_info, text="", font=("TkDefaultFont", 11), bg=BG, fg="#0277bd")
-        self.sequencer_label.pack(anchor="w")
-
-        btns = tk.Frame(controls, bg=BG)
-        btns.pack(side="right")
-        big_button(btns, "Configure", self.open_settings, bg=ACCENT_BLUEGREY, fg="white").pack(side="left", padx=6)
-        big_button(btns, "Start", self.start_test, bg=ACCENT_GREEN, fg="white").pack(side="left", padx=6)
-        big_button(btns, "Stop", self.stop_test, bg=ACCENT_RED, fg="white").pack(side="left", padx=6)
+        self.graph = DualLineGraph(self, history_seconds=300)
+        self.graph.pack(fill="both", expand=True, padx=10, pady=4)
 
         self.sequencer: AutoCycleController | None = None
+
+    @staticmethod
+    def _set_label_text(label: tk.Label, text: str) -> None:
+        """Show/hide a label based on whether it has anything to say, so an
+        empty sequencer/warning line doesn't reserve blank vertical space
+        the graph could otherwise fill."""
+        label.config(text=text)
+        if text:
+            if not label.winfo_manager():
+                label.pack(anchor="w")
+        else:
+            label.pack_forget()
+
+    def _set_sequencer_text(self, text: str) -> None:
+        self._set_label_text(self.sequencer_label, text)
+
+    def _set_warning_text(self, text: str) -> None:
+        self._set_label_text(self.warning_label, text)
 
     def on_shown(self) -> None:
         self._cancel_loops()
         self._t0 = None
+        self._last_sample = None
         self.graph.clear()
-        self.mode_label.config(text=self.app.test_config.summary())
-        self.sequencer_label.config(text="")
+        cfg = self.app.test_config
+        self.battery_label.config(text=presets.describe(cfg.preset_key, cfg.cell_count))
+        self.mode_label.config(text=cfg.summary())
+        self._set_sequencer_text("")
+        self._set_warning_text("")
+        self._refresh_controls()
         self._poll_job = self.after(self.POLL_MS, self._drain_queue)
         self._redraw_job = self.after(self.REDRAW_MS, self._redraw_loop)
+
+    def _is_running(self) -> bool:
+        if self.sequencer is not None and not self.sequencer.finished:
+            return True
+        return self._last_sample is not None and protocol.is_active_status(self._last_sample.status_code)
+
+    def _refresh_controls(self) -> None:
+        running = self._is_running()
+        self.start_btn.config(state=tk.NORMAL if (self.app.is_configured and not running) else tk.DISABLED)
+        self.configure_btn.config(state=tk.DISABLED if running else tk.NORMAL)
 
     def open_settings(self) -> None:
         self.app.show_settings()
@@ -230,13 +278,15 @@ class MainScreen(tk.Frame):
 
         if self.sequencer is not None:
             self.sequencer.tick(time.monotonic())
-            self.sequencer_label.config(text=self.sequencer.status_text(time.monotonic()))
+            self._set_sequencer_text(self.sequencer.status_text(time.monotonic()))
             if self.sequencer.finished:
                 self.sequencer = None
 
+        self._refresh_controls()
         self._poll_job = self.after(self.POLL_MS, self._drain_queue)
 
     def _apply_sample(self, sample) -> None:
+        self._last_sample = sample
         if self._t0 is None:
             self._t0 = sample.timestamp
         self.graph.add_sample(sample.timestamp - self._t0, sample.voltage_v, sample.current_a)
@@ -254,11 +304,40 @@ class MainScreen(tk.Frame):
         self.graph.redraw()
         self._redraw_job = self.after(self.REDRAW_MS, self._redraw_loop)
 
+    @staticmethod
+    def _voltage_bounds_mv(cfg) -> tuple[int, int]:
+        """Sane (lo, hi) voltage band for the currently configured mode's
+        own parameters - discharge modes expect the pack above its cutoff
+        (up to the device's hardware ceiling), charge modes expect it below
+        the target charge voltage."""
+        if cfg.mode == cfgmod.MODE_DSC_CC:
+            return cfg.dsc_cc_cutoff_mv, presets.CHARGE_VOLTAGE_CEILING_MV
+        if cfg.mode == cfgmod.MODE_DSC_CP:
+            return cfg.dsc_cp_cutoff_mv, presets.CHARGE_VOLTAGE_CEILING_MV
+        if cfg.mode == cfgmod.MODE_CHG_CV:
+            return 0, cfg.chg_cv_voltage_mv
+        if cfg.mode == cfgmod.MODE_REPEAT:
+            return 0, cfg.repeat_charge_voltage_mv
+        return 0, presets.CHARGE_VOLTAGE_CEILING_MV
+
     def start_test(self) -> None:
         device = self.app.device
         if device is None:
             return
+        if not self.app.is_configured or self._is_running():
+            return
         cfg = self.app.test_config
+
+        sample = self._last_sample
+        if sample is None or sample.voltage_mv <= 0:
+            self._set_warning_text("Battery not connected")
+            return
+        lo_mv, hi_mv = self._voltage_bounds_mv(cfg)
+        if not (lo_mv <= sample.voltage_mv <= hi_mv):
+            self._set_warning_text("Battery voltage outside range for these settings")
+            return
+        self._set_warning_text("")
+
         self.mode_label.config(text=cfg.summary())
         if cfg.mode == cfgmod.MODE_DSC_CC:
             device.start_discharge_cc(cfg.dsc_cc_current_ma, cfg.dsc_cc_cutoff_mv, cfg.dsc_cc_time_min)
@@ -268,7 +347,8 @@ class MainScreen(tk.Frame):
             device.start_charge_cv(cfg.chg_cv_current_ma, cfg.chg_cv_voltage_mv, cfg.chg_cv_cutoff_ma)
         elif cfg.mode == cfgmod.MODE_REPEAT:
             self.sequencer = AutoCycleController(device, cfg, time.monotonic())
-            self.sequencer_label.config(text=self.sequencer.status_text(time.monotonic()))
+            self._set_sequencer_text(self.sequencer.status_text(time.monotonic()))
+        self._refresh_controls()
 
     def stop_test(self) -> None:
         device = self.app.device
@@ -276,10 +356,11 @@ class MainScreen(tk.Frame):
             return
         if self.sequencer is not None:
             self.sequencer.stop()
-            self.sequencer_label.config(text=self.sequencer.status_text(time.monotonic()))
+            self._set_sequencer_text(self.sequencer.status_text(time.monotonic()))
             self.sequencer = None
         else:
             device.stop()
+        self._refresh_controls()
 
     def disconnect(self) -> None:
         device = self.app.device

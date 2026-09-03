@@ -33,7 +33,11 @@ class EbcDevice:
 
     @staticmethod
     def list_ports() -> list[str]:
-        return [p.device for p in serial.tools.list_ports.comports()]
+        return [
+            p.device
+            for p in serial.tools.list_ports.comports()
+            if not p.device.startswith("/dev/ttyS")
+        ]
 
     def connect(self, port: str) -> None:
         if self.connected:

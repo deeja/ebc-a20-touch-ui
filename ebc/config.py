@@ -13,10 +13,10 @@ MODE_REPEAT = "REPEAT"
 MODE_ORDER = [MODE_DSC_CC, MODE_DSC_CP, MODE_CHG_CV, MODE_REPEAT]
 
 MODE_LABELS = {
-    MODE_DSC_CC: "Discharge - Constant Current",
-    MODE_DSC_CP: "Discharge - Constant Power",
-    MODE_CHG_CV: "Charge - Constant Voltage",
-    MODE_REPEAT: "Repeat (Charge ↔ Discharge)",
+    MODE_DSC_CC: "Discharge - CC",
+    MODE_DSC_CP: "Discharge - CP",
+    MODE_CHG_CV: "Charge - CV",
+    MODE_REPEAT: "Cycle - C/D",
 }
 
 
