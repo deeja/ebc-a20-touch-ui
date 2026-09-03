@@ -120,7 +120,7 @@ physical hardware:
 
 1. **One-time setup**: `cp deploy/pi-gen/config.example deploy/pi-gen/config`,
    fill in a real `FIRST_USER_PASS`.
-2. **Build**: `sh deploy/pi-gen/build.sh` — clones pi-gen's `master` (32-bit)
+2. **Build**: `bash deploy/pi-gen/build.sh` — clones pi-gen's `master` (32-bit)
    branch, bundles this repo
    into the image, applies the `stage-kiosk` customizations, runs the Docker
    build. Produces `battery-tester-kiosk-kiosk.img`.

@@ -22,7 +22,7 @@ gitignored, never commit a real password).
 ## Build
 
 ```
-sh deploy/pi-gen/build.sh
+bash deploy/pi-gen/build.sh
 ```
 
 This clones pi-gen's `master` branch (32-bit/armhf - chosen over the `arm64`
@@ -36,6 +36,26 @@ download and 30-90+ minutes.
 Output lands in `$PI_GEN_DIR/deploy/` (default `~/pi-gen-build/deploy/`) as
 `battery-tester-kiosk-kiosk.img` (plus a checksum/zip depending on pi-gen's
 default compression).
+
+### Caching
+
+`build.sh` sets up caching at three levels so repeated builds/retries don't
+redo unnecessary network- or CPU-bound work:
+
+- pi-gen's build-tooling Docker image (`Dockerfile`) is patched to use
+  BuildKit cache mounts for apt, so rebuilding that image doesn't
+  re-download its packages.
+- A local `pi-gen-apt-cacher` container (apt-cacher-ng, on the
+  `pi-gen-cache-net` Docker network) caches the Raspbian `.deb`s
+  debootstrap/apt-get pull for the Pi image itself, so a from-scratch
+  rebuild doesn't re-fetch the same packages. Best-effort - the build
+  continues without it if it can't be started. To stop using it:
+  `docker rm -f pi-gen-apt-cacher && docker network rm pi-gen-cache-net &&
+  docker volume rm pi-gen-apt-cache`.
+- `CONTINUE=1` is always set, so if a build fails partway through, the next
+  run resumes from the exited `pigen_work` container's already-built stages
+  instead of starting over. Remove the container yourself
+  (`docker rm -v pigen_work`) if you want a truly clean rebuild.
 
 ## What `stage-kiosk` does
 
