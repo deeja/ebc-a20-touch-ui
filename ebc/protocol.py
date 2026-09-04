@@ -149,6 +149,18 @@ class Sample:
         return self.capacity_mah / 1000.0
 
 
+@dataclass
+class RawFrame:
+    """One raw device->host frame, for the Raw Values diagnostic screen -
+    kept alongside its decoded Sample (if any) so hex and translated values
+    can be shown side by side, including frames the normal Sample pipeline
+    silently drops (checksum failures, too-short payloads)."""
+    timestamp: float  # wall-clock time.time(), unlike Sample.timestamp (monotonic)
+    payload: bytes
+    checksum_ok: bool
+    sample: Optional[Sample]
+
+
 def parse_status_frame(payload: bytes) -> Optional[Sample]:
     """Decode a 16-byte device->host payload into a Sample. Returns None if
     the payload is too short to be a status frame."""

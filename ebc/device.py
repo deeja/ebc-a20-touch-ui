@@ -25,6 +25,7 @@ class EbcDevice:
 
     def __init__(self) -> None:
         self.sample_queue: "queue.Queue[Sample]" = queue.Queue()
+        self.raw_queue: "queue.Queue[protocol.RawFrame]" = queue.Queue()
         self.connected = False
         self.last_error: Optional[str] = None
         self._ser: Optional[serial.Serial] = None
@@ -97,12 +98,11 @@ class EbcDevice:
                 if not chunk:
                     continue
                 for payload, ok in reader.feed(chunk):
-                    if not ok:
-                        continue
-                    sample = parse_status_frame(payload)
+                    sample = parse_status_frame(payload) if ok else None
                     if sample is not None:
                         sample.timestamp = time.monotonic()
                         self.sample_queue.put(sample)
+                    self.raw_queue.put(protocol.RawFrame(time.time(), payload, ok, sample))
         except Exception as exc:  # serial disconnects, permission errors, etc.
             self.last_error = str(exc)
             self.connected = False

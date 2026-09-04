@@ -35,6 +35,9 @@ _FINISHED_STATUS = {
 class MockEbcDevice:
     def __init__(self) -> None:
         self.sample_queue: "queue.Queue[Sample]" = queue.Queue()
+        # Interface parity with EbcDevice only - the simulator never produces
+        # real serial frames, so this always stays empty. Nothing puts onto it.
+        self.raw_queue: "queue.Queue" = queue.Queue()
         self.connected = False
         self.last_error: Optional[str] = None
         self._thread: Optional[threading.Thread] = None

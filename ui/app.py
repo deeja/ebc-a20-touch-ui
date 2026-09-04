@@ -17,6 +17,7 @@ from ebc.sequencer import (
 )
 
 from .graph import DualLineGraph
+from .raw_screen import RawScreen
 from .settings_screen import SettingsScreen
 from .warning_screen import WarningScreen, warning_acknowledged
 from .widgets import (
@@ -58,8 +59,9 @@ class App(tk.Tk):
         self.connect_screen = ConnectScreen(self.container, self)
         self.main_screen = MainScreen(self.container, self)
         self.settings_screen = SettingsScreen(self.container, self)
+        self.raw_screen = RawScreen(self.container, self)
         self.warning_screen = WarningScreen(self.container, self.show_connect)
-        for screen in (self.connect_screen, self.main_screen, self.settings_screen, self.warning_screen):
+        for screen in (self.connect_screen, self.main_screen, self.settings_screen, self.raw_screen, self.warning_screen):
             screen.place(relx=0, rely=0, relwidth=1, relheight=1)
 
         self._fullscreen = False
@@ -93,6 +95,10 @@ class App(tk.Tk):
     def show_settings(self) -> None:
         self.settings_screen.on_shown()
         self.settings_screen.lift()
+
+    def show_raw(self) -> None:
+        self.raw_screen.on_shown()
+        self.raw_screen.lift()
 
     def set_device(self, device) -> None:
         self.device = device
@@ -178,7 +184,7 @@ class MainScreen(tk.Frame):
 
         # side="right" packs each new button to the left of the previous
         # one, so pack in reverse of the desired left-to-right order to get
-        # Configure / Start / Stop / Disconnect.
+        # Raw / Configure / Start / Stop / Disconnect.
         big_button(top, "Disconnect", self.disconnect, bg=ACCENT_RED, fg="white").pack(side="right")
         self.stop_btn = big_button(top, "Stop", self.stop_test, bg=ACCENT_RED, fg="white")
         self.stop_btn.pack(side="right", padx=(0, 6))
@@ -186,6 +192,9 @@ class MainScreen(tk.Frame):
         self.start_btn.pack(side="right", padx=(0, 6))
         self.configure_btn = big_button(top, "Configure", self.open_settings, bg=ACCENT_BLUEGREY, fg="white")
         self.configure_btn.pack(side="right", padx=(0, 6))
+        # Not gated by _refresh_controls() like configure_btn - viewing raw
+        # data while a test is actively running is the main use case.
+        big_button(top, "Raw", self.open_raw, bg=BTN_BG, fg=TEXT).pack(side="right", padx=(0, 6))
 
         mode_info = tk.Frame(self, bg=BG)
         mode_info.pack(fill="x", padx=10, pady=(0, 4))
@@ -289,6 +298,9 @@ class MainScreen(tk.Frame):
     def open_settings(self) -> None:
         self.app.show_settings()
 
+    def open_raw(self) -> None:
+        self.app.show_raw()
+
     def _cancel_loops(self) -> None:
         for attr in ("_poll_job", "_redraw_job"):
             job = getattr(self, attr, None)
@@ -305,6 +317,13 @@ class MainScreen(tk.Frame):
             while True:
                 sample = device.sample_queue.get_nowait()
                 self._apply_sample(sample)
+        except queue.Empty:
+            pass
+
+        try:
+            while True:
+                record = device.raw_queue.get_nowait()
+                self.app.raw_screen.append_record(record)
         except queue.Empty:
             pass
 
