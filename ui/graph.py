@@ -6,16 +6,18 @@ kind of thing that makes a Pi Zero feel broken.
 
 Tapping the chart opens a touch popup to pick how the time axis behaves
 (a scrolling window of a chosen width, or "Fit All" to show the whole
-run) - that choice is remembered across restarts via ui/prefs.py."""
+run) - that choice is remembered across restarts via ui/prefs.py.
+Dragging a finger/mouse across the chart instead shows a value tooltip
+and crosshair for the nearest sample - drag vs. tap is disambiguated by
+a small movement threshold so a plain tap still opens the popup."""
 from __future__ import annotations
 
+import math
 import tkinter as tk
 from collections import deque
 
 from . import prefs as prefsmod
 from .widgets import (
-    ACCENT_BLUEGREY,
-    ACCENT_RED,
     BORDER,
     BTN_ACTIVE_BG,
     BTN_BG,
@@ -34,13 +36,16 @@ from .widgets import (
 
 VOLTAGE_COLOR = "#0288d1"
 CURRENT_COLOR = "#ef6c00"
+VOLTAGE_GRID_COLOR = "#d6ecfa"
+CURRENT_GRID_COLOR = "#fbe0c4"
 GRID_COLOR = "#dddddd"
 AXIS_TEXT_COLOR = "#666666"
 HINT_TEXT_COLOR = "#aaaaaa"
+CROSSHAIR_COLOR = "#999999"
 BG_COLOR = "#ffffff"
 
-MARGIN_L = 60
-MARGIN_R = 60
+MARGIN_L = 68
+MARGIN_R = 68
 MARGIN_T = 16
 MARGIN_B = 34
 
@@ -51,6 +56,17 @@ MAX_WINDOW_S = 24 * 3600
 
 # unit_options for the scroll-window NumpadDialog: raw base unit is seconds.
 WINDOW_UNITS = [("Sec", 1), ("Min", 60)]
+
+# Axis tick sizing: below FINE_STEP_THRESHOLD_BASE (base units, V or A) an
+# axis uses a fixed one-decimal step instead of losing all resolution to a
+# whole number of volts/amps; at or above it, ticks fall back to a standard
+# 1/2/5 x10**n "nice step" search, which is always a whole number.
+FINE_STEP_THRESHOLD_BASE = 2.0
+FINE_STEP = 0.1
+NICE_STEP_TARGET_ROWS = 4
+
+TARGET_DASH = (4, 3)
+DRAG_THRESHOLD_PX = 10
 
 
 class DualLineGraph(tk.Canvas):
@@ -64,9 +80,34 @@ class DualLineGraph(tk.Canvas):
         self.y_zero_based = False
         self._load_view_settings()
 
+        # Configured cutoff/setpoint for the current test mode - set by the
+        # caller (app.py, which knows about TestConfig) via set_targets().
+        # None means no target line for that channel.
+        self.target_v: float | None = None
+        self.target_a: float | None = None
+
         self._points: deque[tuple[float, float, float]] = deque(maxlen=2000)
+
+        self._press_xy: tuple[int, int] | None = None
+        self._dragging = False
+        self._drag_x: int | None = None
+        self._overlay_items: list[int] = []
+
+        # Geometry/domain from the most recent redraw() - lets a drag move
+        # the crosshair/tooltip cheaply (no full recompute) between the
+        # throttled full redraws the caller schedules.
+        self._last_pts: list[tuple[float, float, float]] = []
+        self._last_t_min = 0.0
+        self._last_t_max = 0.0
+        self._last_plot_w: int | None = None
+        self._last_plot_h = 0
+        self._last_v_lo = self._last_v_hi = 0.0
+        self._last_a_lo = self._last_a_hi = 0.0
+
         self.bind("<Configure>", lambda e: self.redraw())
-        self.bind("<Button-1>", self._on_tap)
+        self.bind("<ButtonPress-1>", self._on_press)
+        self.bind("<B1-Motion>", self._on_drag)
+        self.bind("<ButtonRelease-1>", self._on_release)
 
     def add_sample(self, t: float, voltage_v: float, current_a: float) -> None:
         self._points.append((t, voltage_v, current_a))
@@ -107,17 +148,38 @@ class DualLineGraph(tk.Canvas):
         self._save_view_settings()
         self.redraw()
 
-    def clear_view_settings(self) -> None:
-        """Reset to the graph's built-in default and forget the saved
-        choice, so a future run starts fresh instead of reopening on
-        whatever view was last picked."""
-        all_prefs = prefsmod.load_prefs()
-        all_prefs.pop(PREFS_KEY, None)
-        prefsmod.save_prefs(all_prefs)
-        self.fit_all = False
-        self.window_seconds = self.default_window_seconds
-        self.y_zero_based = False
-        self.redraw()
+    def set_targets(self, voltage_v: float | None, current_a: float | None) -> None:
+        """Configured cutoff/setpoint to draw as a reference line - not
+        persisted, this tracks the live test config/mode, not a view
+        preference. Picked up on the next redraw() rather than forcing one
+        immediately."""
+        self.target_v = voltage_v
+        self.target_a = current_a
+
+    # -- tap (open view options) vs. drag (tooltip) -------------------------
+    def _on_press(self, event) -> None:
+        self._press_xy = (event.x, event.y)
+        self._dragging = False
+
+    def _on_drag(self, event) -> None:
+        if self._press_xy is None:
+            return
+        dx = event.x - self._press_xy[0]
+        dy = event.y - self._press_xy[1]
+        if not self._dragging and max(abs(dx), abs(dy)) > DRAG_THRESHOLD_PX:
+            self._dragging = True
+        if self._dragging:
+            self._update_overlay(event.x)
+
+    def _on_release(self, event) -> None:
+        was_dragging = self._dragging
+        self._press_xy = None
+        self._dragging = False
+        self._drag_x = None
+        if was_dragging:
+            self.redraw()
+        else:
+            self._on_tap(event)
 
     def _on_tap(self, _event=None) -> None:
         GraphViewDialog(self, self)
@@ -127,6 +189,7 @@ class DualLineGraph(tk.Canvas):
         w = self.winfo_width()
         h = self.winfo_height()
         if w < 10 or h < 10 or not self._points:
+            self._last_plot_w = None
             return
 
         plot_w = max(1, w - MARGIN_L - MARGIN_R)
@@ -136,17 +199,31 @@ class DualLineGraph(tk.Canvas):
         t_min = self._points[0][0] if self.fit_all else t_max - self.window_seconds
         pts = [p for p in self._points if p[0] >= t_min]
         if len(pts) < 2:
+            self._last_plot_w = None
             return
 
-        # decimate to roughly one sample per pixel column
-        if len(pts) > plot_w:
-            step = len(pts) // plot_w
-            pts = pts[::step]
+        v_min, v_max = min(p[1] for p in pts), max(p[1] for p in pts)
+        a_min, a_max = min(p[2] for p in pts), max(p[2] for p in pts)
 
-        volts = [p[1] for p in pts]
-        amps = [p[2] for p in pts]
-        v_lo, v_hi = _padded_range(volts, zero_based=self.y_zero_based)
-        a_lo, a_hi = _padded_range(amps, zero_based=self.y_zero_based)
+        # decimate to roughly one sample per pixel column for the polyline -
+        # min/max/ticks above are computed from the full-resolution pts so a
+        # narrow spike isn't lost to decimation.
+        plot_pts = pts
+        if len(plot_pts) > plot_w:
+            step = len(plot_pts) // plot_w
+            plot_pts = plot_pts[::step]
+
+        # Widen the domain to include the target line if it's outside the
+        # visible data's own range, so it doesn't fall off-chart.
+        v_tick_lo = v_min if self.target_v is None else min(v_min, self.target_v)
+        v_tick_hi = v_max if self.target_v is None else max(v_max, self.target_v)
+        a_tick_lo = a_min if self.target_a is None else min(a_min, self.target_a)
+        a_tick_hi = a_max if self.target_a is None else max(a_max, self.target_a)
+
+        v_ticks, v_decimals = _axis_ticks(v_tick_lo, v_tick_hi, self.y_zero_based)
+        a_ticks, a_decimals = _axis_ticks(a_tick_lo, a_tick_hi, self.y_zero_based)
+        v_lo, v_hi = v_ticks[0], v_ticks[-1]
+        a_lo, a_hi = a_ticks[0], a_ticks[-1]
 
         def x_of(t: float) -> float:
             span = max(1e-6, t_max - t_min)
@@ -156,11 +233,16 @@ class DualLineGraph(tk.Canvas):
             span = max(1e-6, hi - lo)
             return MARGIN_T + plot_h - (val - lo) / span * plot_h
 
-        self._draw_grid(w, h, plot_w, plot_h, t_min, t_max, v_lo, v_hi, a_lo, a_hi)
+        self._draw_axis_grid(plot_w, plot_h, v_ticks, v_decimals, v_lo, v_hi,
+                              VOLTAGE_GRID_COLOR, VOLTAGE_COLOR, "V", "left")
+        self._draw_axis_grid(plot_w, plot_h, a_ticks, a_decimals, a_lo, a_hi,
+                              CURRENT_GRID_COLOR, CURRENT_COLOR, "A", "right")
+        self._draw_time_grid(plot_w, plot_h, t_min, t_max)
+        self._draw_target_lines(plot_w, plot_h, v_lo, v_hi, a_lo, a_hi)
 
         v_line = []
         a_line = []
-        for t, v, a in pts:
+        for t, v, a in plot_pts:
             x = x_of(t)
             v_line += [x, y_of(v, v_lo, v_hi)]
             a_line += [x, y_of(a, a_lo, a_hi)]
@@ -170,18 +252,29 @@ class DualLineGraph(tk.Canvas):
 
         self.create_text(MARGIN_L, 8, text="Voltage (V)", fill=VOLTAGE_COLOR, anchor="w", font=("TkDefaultFont", 9, "bold"))
         self.create_text(w - MARGIN_R, 8, text="Current (A)", fill=CURRENT_COLOR, anchor="e", font=("TkDefaultFont", 9, "bold"))
-        self.create_text(w / 2, 8, text="tap chart for view options", fill=HINT_TEXT_COLOR, anchor="n", font=("TkDefaultFont", 8))
+        self.create_text(w / 2, 8, text="tap chart for view options, drag for values", fill=HINT_TEXT_COLOR,
+                          anchor="n", font=("TkDefaultFont", 8))
 
-    def _draw_grid(self, w, h, plot_w, plot_h, t_min, t_max, v_lo, v_hi, a_lo, a_hi):
-        rows = 4
-        for i in range(rows + 1):
-            y = MARGIN_T + plot_h * i / rows
-            self.create_line(MARGIN_L, y, MARGIN_L + plot_w, y, fill=GRID_COLOR)
-            v_val = v_hi - (v_hi - v_lo) * i / rows
-            a_val = a_hi - (a_hi - a_lo) * i / rows
-            self.create_text(MARGIN_L - 6, y, text=f"{v_val:.2f}", fill=VOLTAGE_COLOR, anchor="e", font=("TkDefaultFont", 8))
-            self.create_text(MARGIN_L + plot_w + 6, y, text=f"{a_val:.2f}", fill=CURRENT_COLOR, anchor="w", font=("TkDefaultFont", 8))
+        self._last_pts = pts
+        self._last_t_min, self._last_t_max = t_min, t_max
+        self._last_plot_w, self._last_plot_h = plot_w, plot_h
+        self._last_v_lo, self._last_v_hi = v_lo, v_hi
+        self._last_a_lo, self._last_a_hi = a_lo, a_hi
 
+        if self._dragging and self._drag_x is not None:
+            self._update_overlay(self._drag_x)
+
+    def _draw_axis_grid(self, plot_w, plot_h, ticks, decimals, lo, hi, line_color, text_color, unit_label, side) -> None:
+        span = max(1e-9, hi - lo)
+        for val in ticks:
+            y = MARGIN_T + plot_h - (val - lo) / span * plot_h
+            self.create_line(MARGIN_L, y, MARGIN_L + plot_w, y, fill=line_color)
+            label = f"{val:.{decimals}f}{unit_label}"
+            x = (MARGIN_L - 6) if side == "left" else (MARGIN_L + plot_w + 6)
+            anchor = "e" if side == "left" else "w"
+            self.create_text(x, y, text=label, fill=text_color, anchor=anchor, font=("TkDefaultFont", 8))
+
+    def _draw_time_grid(self, plot_w, plot_h, t_min, t_max) -> None:
         cols = 4
         for i in range(cols + 1):
             x = MARGIN_L + plot_w * i / cols
@@ -189,8 +282,58 @@ class DualLineGraph(tk.Canvas):
             t_val = t_min + (t_max - t_min) * i / cols
             self.create_text(x, MARGIN_T + plot_h + 4, text=_format_elapsed(t_val), fill=AXIS_TEXT_COLOR,
                               anchor="n", font=("TkDefaultFont", 8))
-
         self.create_rectangle(MARGIN_L, MARGIN_T, MARGIN_L + plot_w, MARGIN_T + plot_h, outline=GRID_COLOR)
+
+    def _draw_target_lines(self, plot_w, plot_h, v_lo, v_hi, a_lo, a_hi) -> None:
+        for val, lo, hi, color, unit_label, side in (
+            (self.target_v, v_lo, v_hi, VOLTAGE_COLOR, "V", "left"),
+            (self.target_a, a_lo, a_hi, CURRENT_COLOR, "A", "right"),
+        ):
+            if val is None:
+                continue
+            span = max(1e-9, hi - lo)
+            y = MARGIN_T + plot_h - (val - lo) / span * plot_h
+            self.create_line(MARGIN_L, y, MARGIN_L + plot_w, y, fill=color, dash=TARGET_DASH)
+            text = f"{val:.2f}{unit_label}"
+            x = (MARGIN_L + 4) if side == "left" else (MARGIN_L + plot_w - 4)
+            anchor = "w" if side == "left" else "e"
+            self.create_text(x, y, text=text, fill=color, anchor=anchor, font=("TkDefaultFont", 8, "bold"))
+
+    def _update_overlay(self, x: int) -> None:
+        if self._last_plot_w is None or not self._last_pts:
+            return
+        if self._overlay_items:
+            self.delete(*self._overlay_items)
+        self._overlay_items = []
+
+        x = max(MARGIN_L, min(MARGIN_L + self._last_plot_w, x))
+        self._drag_x = x
+
+        span = max(1e-6, self._last_t_max - self._last_t_min)
+        t = self._last_t_min + (x - MARGIN_L) / self._last_plot_w * span
+        sample = min(self._last_pts, key=lambda p: abs(p[0] - t))
+
+        crosshair = self.create_line(x, MARGIN_T, x, MARGIN_T + self._last_plot_h, fill=CROSSHAIR_COLOR, dash=(2, 2))
+        self._overlay_items.append(crosshair)
+
+        v_text = f"{sample[1]:.2f}V"
+        a_text = f"{sample[2]:.2f}A"
+        text = f"{_format_elapsed(sample[0])}\n{v_text}\n{a_text}"
+
+        right_side = x > MARGIN_L + self._last_plot_w / 2
+        anchor = "ne" if right_side else "nw"
+        tx = x - 8 if right_side else x + 8
+        ty = MARGIN_T + 6
+
+        label = self.create_text(tx, ty, text=text, fill=TEXT, anchor=anchor, font=("TkDefaultFont", 9), justify="left")
+        bbox = self.bbox(label)
+        if bbox:
+            pad = 4
+            rect = self.create_rectangle(bbox[0] - pad, bbox[1] - pad, bbox[2] + pad, bbox[3] + pad,
+                                          fill=BG_COLOR, outline=GRID_COLOR)
+            self.tag_lower(rect, label)
+            self._overlay_items.append(rect)
+        self._overlay_items.append(label)
 
 
 class GraphViewDialog(tk.Toplevel):
@@ -208,8 +351,11 @@ class GraphViewDialog(tk.Toplevel):
 
         tk.Label(self, text="Chart View", font=FONT_MED, bg=PANEL_BG, fg=TEXT_MUTED).pack(pady=(14, 6))
 
-        window_box = tk.Frame(self, bg=PANEL_BG)
-        window_box.pack(fill="x", padx=14)
+        top_row = tk.Frame(self, bg=PANEL_BG)
+        top_row.pack(fill="x", padx=14)
+
+        window_box = tk.Frame(top_row, bg=PANEL_BG)
+        window_box.pack(side="left", fill="both", expand=True)
         tk.Label(window_box, text="SCROLL WINDOW", font=FONT_SMALL, bg=PANEL_BG, fg=TEXT_MUTED).pack(anchor="w")
         window_selected = not graph.fit_all
         self._window_btn = tk.Button(
@@ -219,16 +365,15 @@ class GraphViewDialog(tk.Toplevel):
             highlightthickness=2, highlightbackground=SELECTED_BORDER if window_selected else BORDER,
             padx=16, pady=10,
         )
-        self._window_btn.pack(anchor="w", fill="x", pady=(2, 10))
+        self._window_btn.pack(anchor="w", fill="x")
+
+        self.fit_toggle = ToggleButton(top_row, "Fit All", active=graph.fit_all, on_change=self._pick_fit_all)
+        self.fit_toggle.pack(side="left", padx=(10, 0), pady=(16, 0))
 
         self.zero_toggle = ToggleButton(self, "Start Y at 0", active=graph.y_zero_based,
                                          on_change=self._pick_y_zero_based)
-        self.zero_toggle.pack(fill="x", padx=14, pady=(0, 10))
+        self.zero_toggle.pack(fill="x", padx=14, pady=(10, 10))
 
-        fit_bg = SELECTED_BG if graph.fit_all else ACCENT_BLUEGREY
-        fit_fg = TEXT if graph.fit_all else "white"
-        big_button(self, "Fit All", self._pick_fit_all, bg=fit_bg, fg=fit_fg).pack(fill="x", padx=14, pady=(10, 4))
-        big_button(self, "Clear Settings", self._clear_settings, bg=ACCENT_RED, fg="white").pack(fill="x", padx=14, pady=4)
         big_button(self, "Close", self.destroy, bg=BTN_BG, fg=TEXT).pack(fill="x", padx=14, pady=(4, 14))
 
         self.transient(master.winfo_toplevel())
@@ -257,13 +402,16 @@ class GraphViewDialog(tk.Toplevel):
     def _pick_y_zero_based(self, enabled: bool) -> None:
         self._graph.set_y_zero_based(enabled)
 
-    def _pick_fit_all(self) -> None:
-        self._graph.set_fit_all()
-        self.destroy()
-
-    def _clear_settings(self) -> None:
-        self._graph.clear_view_settings()
-        self.destroy()
+    def _pick_fit_all(self, enabled: bool) -> None:
+        if enabled:
+            self._graph.set_fit_all()
+        else:
+            self._graph.set_window(self._graph.window_seconds)
+        window_selected = not self._graph.fit_all
+        self._window_btn.config(
+            bg=SELECTED_BG if window_selected else PANEL_BG,
+            highlightbackground=SELECTED_BORDER if window_selected else BORDER,
+        )
 
 
 def _format_elapsed(seconds: float) -> str:
@@ -275,16 +423,38 @@ def _format_elapsed(seconds: float) -> str:
     return f"{minutes}:{secs:02d}"
 
 
-def _padded_range(values: list[float], zero_based: bool = False) -> tuple[float, float]:
-    lo, hi = min(values), max(values)
-    if zero_based:
-        lo = min(0.0, lo)
-    if hi - lo < 1e-6:
-        hi += 0.5
-        if not zero_based:
-            lo -= 0.5
-    pad = (hi - lo) * 0.1
-    hi += pad
-    if not zero_based or lo < 0:
-        lo -= pad
-    return lo, hi
+def _nice_step(raw_step: float) -> float:
+    """Smallest value from {1, 2, 5} x 10**k (k >= 0) that is >= raw_step -
+    always a whole number, since k never goes negative."""
+    if raw_step <= 0:
+        return 1.0
+    k = 0
+    while True:
+        for candidate in (1, 2, 5):
+            step = candidate * (10 ** k)
+            if step >= raw_step:
+                return float(step)
+        k += 1
+
+
+def _axis_ticks(lo: float, hi: float, zero_based: bool) -> tuple[list[float], int]:
+    """Tick values (in V or A) for one axis, plus how many decimal places to
+    display them with. Narrow spans (below FINE_STEP_THRESHOLD_BASE) use a
+    fixed one-decimal step rather than collapsing to just 2-3 whole-volt/amp
+    gridlines; wider spans use a standard 1/2/5 x10**n "nice step", always a
+    whole number."""
+    eff_lo = min(0.0, lo) if zero_based else lo
+    span = max(hi - eff_lo, 1e-9)
+    if span < FINE_STEP_THRESHOLD_BASE:
+        step = FINE_STEP
+    else:
+        step = _nice_step(span / NICE_STEP_TARGET_ROWS)
+    decimals = 1 if step < 1 else 0
+
+    nice_lo = math.floor(eff_lo / step) * step
+    nice_hi = math.ceil(hi / step) * step
+    if nice_hi <= nice_lo:
+        nice_hi = nice_lo + step
+    rows = round((nice_hi - nice_lo) / step)
+    ticks = [nice_lo + step * i for i in range(rows + 1)]
+    return ticks, decimals

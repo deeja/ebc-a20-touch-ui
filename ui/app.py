@@ -10,7 +10,11 @@ from ebc import presets
 from ebc import protocol
 from ebc.device import EbcDevice
 from ebc.mock_device import MockEbcDevice
-from ebc.sequencer import AutoCycleController
+from ebc.sequencer import (
+    ST_DISCHARGING,
+    ST_RESTING_BEFORE_CHARGE,
+    AutoCycleController,
+)
 
 from .graph import DualLineGraph
 from .settings_screen import SettingsScreen
@@ -234,14 +238,43 @@ class MainScreen(tk.Frame):
         self._last_sample = None
         self.graph.clear()
         cfg = self.app.test_config
-        self.battery_label.config(text=presets.describe(cfg.preset_key, cfg.cell_count))
-        self.mode_label.config(text=cfg.summary())
+        if self.app.is_configured:
+            self.battery_label.config(text=presets.describe(cfg.preset_key, cfg.cell_count))
+            self.mode_label.config(text=cfg.summary())
+        else:
+            self.battery_label.config(text="Not configured")
+            self.mode_label.config(text="Tap Configure to select a battery and test mode")
         self._set_sequencer_text("")
         self._set_warning_text("")
         self.tile_status.set("--")
+        self.graph.set_targets(*self._current_targets())
         self._refresh_controls()
         self._poll_job = self.after(self.POLL_MS, self._drain_queue)
         self._redraw_job = self.after(self.REDRAW_MS, self._redraw_loop)
+
+    def _current_targets(self) -> tuple[float | None, float | None]:
+        """Configured cutoff/setpoint (voltage, current) for the graph's
+        target line, in V/A - depends on mode, and for Repeat also on
+        which leg (charge vs. discharge) the sequencer is currently in.
+        No battery/mode has actually been chosen until Configure is saved
+        at least once, so there's nothing to target yet."""
+        if not self.app.is_configured:
+            return None, None
+        cfg = self.app.test_config
+        if cfg.mode == cfgmod.MODE_DSC_CC:
+            return cfg.dsc_cc_cutoff_mv / 1000.0, cfg.dsc_cc_current_ma / 1000.0
+        if cfg.mode == cfgmod.MODE_DSC_CP:
+            return cfg.dsc_cp_cutoff_mv / 1000.0, None
+        if cfg.mode == cfgmod.MODE_CHG_CV:
+            return cfg.chg_cv_voltage_mv / 1000.0, cfg.chg_cv_current_ma / 1000.0
+        if cfg.mode == cfgmod.MODE_REPEAT:
+            discharging = self.sequencer is not None and self.sequencer.state in (
+                ST_DISCHARGING, ST_RESTING_BEFORE_CHARGE,
+            )
+            if discharging:
+                return cfg.repeat_discharge_cutoff_mv / 1000.0, cfg.repeat_discharge_current_ma / 1000.0
+            return cfg.repeat_charge_voltage_mv / 1000.0, cfg.repeat_charge_current_ma / 1000.0
+        return None, None
 
     def _is_running(self) -> bool:
         if self.sequencer is not None and not self.sequencer.finished:
@@ -288,6 +321,7 @@ class MainScreen(tk.Frame):
             self._set_sequencer_text(self.sequencer.status_text(time.monotonic()))
             if self.sequencer.finished:
                 self.sequencer = None
+            self.graph.set_targets(*self._current_targets())
 
         self._refresh_controls()
         self._poll_job = self.after(self.POLL_MS, self._drain_queue)
