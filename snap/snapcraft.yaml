@@ -1,6 +1,6 @@
 name: battery-tester-kiosk
 base: core22
-version: git
+version: "1.0"
 summary: Touchscreen UI for the ZKETECH EBC-A20 battery tester
 description: |
   A touchscreen kiosk app for the ZKETECH EBC-A20 battery capacity tester.
