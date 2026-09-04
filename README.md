@@ -88,18 +88,7 @@ synthetic discharge data.
 
 Targets a headless Raspberry Pi OS Lite install (no desktop environment) —
 the app runs as the only thing on the display, launched via a minimal X
-session on the console. There are two ways to get there:
-
-### Option A: build a golden image (recommended)
-
-`deploy/pi-gen/` builds a complete, flashable `.img` from scratch (via
-[pi-gen](https://github.com/RPi-Distro/pi-gen)) with the app and kiosk
-config already baked in - no physical Pi needed until the final verification
-boot. See [`deploy/pi-gen/README.md`](deploy/pi-gen/README.md). This is the
-right choice if you're setting up more than one unit, or want a clean
-reflash-ready artifact.
-
-### Option B: provision a running Pi directly
+session on the console.
 
 1. Flash Raspberry Pi OS Lite, enable SSH, get the Pi on the network (needed
    for this one-time setup only — the running kiosk needs no network at all).
@@ -107,8 +96,12 @@ reflash-ready artifact.
    touch; it's a 1024x600 panel, which is what the UI defaults its window
    size to — it also reads the real screen size at runtime, so this isn't
    load-bearing).
-3. Copy this project to the Pi, e.g. `/home/pi/batterytesterui`.
-4. From inside the project directory: `sh deploy/install.sh` — installs
+3. Get the app onto the Pi, e.g. `/home/pi/batterytesterui`. Either
+   `git clone` this repo, or download and extract a packaged release from
+   the [Releases page](https://github.com/deeja/batterytesterui/releases)
+   (a `battery-tester-kiosk-<version>.tar.gz` containing just the app and
+   `deploy/`, no dev-only files).
+4. From inside that directory: `sh deploy/install.sh` — installs
    `python3-tk`/`python3-serial`/`xserver-xorg`/`xinit` from apt (no
    compiling), adds your user to the groups needed to open the serial port
    and drive the display/touch devices, enables console autologin on tty1,
@@ -119,9 +112,10 @@ reflash-ready artifact.
    login prompt.
 
 This is also the path for updating an already-deployed unit in place
-(`git pull` + re-run `install.sh`) without a full rebuild+reflash.
+(`git pull`, or download the newer release package, then re-run
+`install.sh`) — there's no separate image to rebuild and reflash.
 
-### Troubleshooting either path
+### Troubleshooting
 
 To run it manually instead of at boot: `python3 main.py` (from an SSH
 session, or a manual `startx` on the console).
@@ -130,10 +124,10 @@ If the kiosk fails to come up, SSH in and check `journalctl -t ebc-kiosk`
 for a traceback. If that's empty, the app never got launched at all - check
 `~/.local/share/xorg/Xorg.0.log` for an X-server startup failure instead
 (most commonly `/etc/X11/Xwrapper.config` not allowing console-started X
-sessions, which both setup paths set automatically, but re-check it if
-you've customized that file).
+sessions, which `install.sh` sets automatically, but re-check it if you've
+customized that file).
 
-For the full design rationale behind both paths, see
+For the full design rationale behind the kiosk setup, see
 [`docs/pi-kiosk-plan.md`](docs/pi-kiosk-plan.md).
 
 ## Project layout
@@ -151,6 +145,8 @@ ui/settings_screen.py     battery/mode/param configuration screen
 ui/graph.py               dual-line strip chart (Tkinter Canvas)
 ui/widgets.py              touch-sized buttons / steppers / dropdowns / toggles
 deploy/                     install script + kiosk-launch templates
-deploy/pi-gen/               golden-image build (pi-gen custom stage)
-docs/pi-kiosk-plan.md       Pi kiosk deployment + golden-image build procedure
+deploy/build-package.sh      builds the downloadable release .tar.gz
+deploy/test-local-install.sh  tests build-package.sh + install.sh in Docker
+deploy/test-local-ui.sh       runs the app in Docker, forwarded to your X server
+docs/pi-kiosk-plan.md       Pi kiosk deployment design rationale
 ```

@@ -6,13 +6,58 @@
             "type": "shell",
             "command": "python3",
             "args": ["main.py"],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
             "group": {
                 "kind": "build",
                 "isDefault": true
             },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Build Deployment Package",
+            "type": "shell",
+            "command": "bash",
+            "args": ["deploy/build-package.sh"],
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Test Local Install (Docker)",
+            "type": "shell",
+            "command": "bash",
+            "args": ["deploy/test-local-install.sh"],
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run UI in Docker (X forwarded)",
+            "type": "shell",
+            "command": "bash",
+            "args": ["deploy/test-local-ui.sh"],
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run UI in Docker (Kiosk mode)",
+            "type": "shell",
+            "command": "bash",
+            "args": ["deploy/test-local-ui.sh", "--kiosk"],
+            "group": "test",
             "presentation": {
                 "reveal": "always",
                 "panel": "dedicated"
