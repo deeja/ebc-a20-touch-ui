@@ -5,6 +5,40 @@ built for a Raspberry Pi Zero + JRP7006 touchscreen. Python + Tkinter (no
 GPU/OpenGL toolkit, so it runs on an original armv6 Pi Zero without
 compiling anything from source).
 
+> ## ⚠️ FOR EXPERTS ONLY - READ BEFORE USE
+>
+> This tool drives real charge/discharge hardware against real batteries.
+> Charging and discharging batteries outside their safe parameters can cause
+> fire, explosion, toxic gas release, or permanent damage to the battery,
+> the EBC-A20, or its surroundings - lithium chemistries especially so.
+>
+> **If you do not already understand battery chemistry - safe voltage
+> cutoffs, C-rates, charge termination behavior, and the specific risks of
+> the chemistry you're testing - do not use this tool.** Nothing here
+> teaches or verifies that knowledge for you: the settings screen lets you
+> pick numbers, it doesn't know what's safe for the cell in front of you.
+>
+> This software is provided with **no warranty of any kind**, and its
+> authors and contributors accept **no responsibility or liability** for
+> any damage, injury, fire, or loss arising from its use, including from
+> bugs, incorrect readings, or protocol misinterpretation (see the protocol
+> verification status below). You use it, and the hardware it controls,
+> entirely at your own risk.
+
+## Huge thanks to
+
+This project stands entirely on other people's work:
+
+- **[enkiusz's EBC-A20 protocol write-up](https://gist.github.com/enkiusz/6408645efd622b8a638a14957cd37f47)** - one of the two independent reverse-engineering efforts behind `ebc/protocol.py`; the EBC-A20 has zero official protocol documentation, so this is the actual hard work of figuring out the frame format, checksum, and value encoding.
+- **[Kazhuu/ebc-battery-tester](https://github.com/Kazhuu/ebc-battery-tester)** - the second independent reverse-engineering write-up corroborating the protocol; see the Protocol verification status section below for the full story.
+- **[PySerial](https://github.com/pyserial/pyserial)** - the one runtime
+  dependency this app has, and it does *all* the heavy lifting: every byte
+  to and from the EBC-A20 (`ebc/device.py`) crosses a PySerial port. Rock
+  solid, dead simple, thank you.
+
+If you maintain any of the above and are reading this: seriously, thank
+you.
+
 ## What it does
 
 - Connect screen: lists serial ports, connect/disconnect, or run against a
