@@ -98,6 +98,9 @@ jobs:
       - name: Build app
         run: pyinstaller --name battery-tester-kiosk --onefile --windowed --hidden-import=serial.tools.list_ports main.py
 
+      - name: Force light appearance (Tk doesn't repaint text color for macOS dark mode)
+        run: /usr/libexec/PlistBuddy -c "Add :NSRequiresAquaSystemAppearance bool true" dist/battery-tester-kiosk.app/Contents/Info.plist
+
       - name: Zip app bundle
         run: |
           cd dist

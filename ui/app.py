@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import queue
+import sys
 import time
 import tkinter as tk
 
@@ -38,6 +39,18 @@ DEFAULT_W, DEFAULT_H = 1024, 600
 class App(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
+        if sys.platform == "darwin":
+            # Tk on macOS doesn't repaint widget text color for dark mode -
+            # the background stays whatever this app explicitly set (light),
+            # but default-colored text still follows the OS appearance
+            # (white), making it invisible. This app is light-theme-only by
+            # design (see ui/widgets.py), so just force Aqua regardless of
+            # the system's Dark Mode setting rather than chase colors widget
+            # by widget.
+            try:
+                self.tk.call("::tk::unsupported::MacWindowStyle", "appearance", self, "aqua")
+            except tk.TclError:
+                pass
         self.title("EBC-A20 Battery Tester")
         self.configure(bg=BG)
         self.geometry(f"{DEFAULT_W}x{DEFAULT_H}")
