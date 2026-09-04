@@ -4,14 +4,11 @@ a small prefs file in the user's home directory, so this doesn't get in the
 way once someone's actually read it."""
 from __future__ import annotations
 
-import json
 import tkinter as tk
-from pathlib import Path
 from typing import Callable
 
+from . import prefs as prefsmod
 from .widgets import ACCENT_GREEN, ACCENT_RED, BG, PANEL_BG, TEXT, TEXT_MUTED, big_button
-
-PREFS_PATH = Path.home() / ".battery_tester_ui" / "prefs.json"
 
 WARNING_POINTS = [
     "This drives real charge/discharge hardware against real batteries.",
@@ -26,29 +23,14 @@ WARNING_POINTS = [
 ]
 
 
-def _load_prefs() -> dict:
-    try:
-        return json.loads(PREFS_PATH.read_text())
-    except (OSError, ValueError):
-        return {}
-
-
-def _save_prefs(prefs: dict) -> None:
-    try:
-        PREFS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        PREFS_PATH.write_text(json.dumps(prefs))
-    except OSError:
-        pass  # best-effort - worst case, the warning shows again next run
-
-
 def warning_acknowledged() -> bool:
-    return bool(_load_prefs().get("warning_acknowledged"))
+    return bool(prefsmod.load_prefs().get("warning_acknowledged"))
 
 
 def set_warning_acknowledged() -> None:
-    prefs = _load_prefs()
+    prefs = prefsmod.load_prefs()
     prefs["warning_acknowledged"] = True
-    _save_prefs(prefs)
+    prefsmod.save_prefs(prefs)
 
 
 class WarningScreen(tk.Frame):
