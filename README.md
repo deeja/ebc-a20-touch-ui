@@ -1,11 +1,13 @@
-# EBC-A20 Battery Tester UI
+# Cross platform EBC-A20 Battery Tester UI
+## Linux, Mac, or Windows
 
 ![Main screen mid-discharge in constant-power mode](docs/screenshots/05-main-screen-discharge-cp.png)
 
-A native touchscreen app for the ZKETECH EBC-A20 battery capacity tester,
-built for a Raspberry Pi Zero + JRP7006 touchscreen. Python + Tkinter (no
-GPU/OpenGL toolkit, so it runs on an original armv6 Pi Zero without
-compiling anything from source).
+A native touchscreen app for the ZKETECH EBC-A20 battery capacity tester.
+Python + Tkinter needs no GPU/OpenGL toolkit, so it's light enough to run
+on something as small as a Raspberry Pi Zero touchscreen kiosk, and it's
+packaged for desktop Linux, Windows, and macOS too. See **Getting a
+build** below.
 
 > ## ⚠️ FOR EXPERTS ONLY - READ BEFORE USE
 >
