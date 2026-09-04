@@ -65,7 +65,6 @@ FINE_STEP_THRESHOLD_BASE = 2.0
 FINE_STEP = 0.1
 NICE_STEP_TARGET_ROWS = 4
 
-TARGET_DASH = (4, 3)
 DRAG_THRESHOLD_PX = 10
 
 
@@ -79,12 +78,6 @@ class DualLineGraph(tk.Canvas):
         self.fit_all = False
         self.y_zero_based = False
         self._load_view_settings()
-
-        # Configured cutoff/setpoint for the current test mode - set by the
-        # caller (app.py, which knows about TestConfig) via set_targets().
-        # None means no target line for that channel.
-        self.target_v: float | None = None
-        self.target_a: float | None = None
 
         self._points: deque[tuple[float, float, float]] = deque(maxlen=2000)
 
@@ -148,14 +141,6 @@ class DualLineGraph(tk.Canvas):
         self._save_view_settings()
         self.redraw()
 
-    def set_targets(self, voltage_v: float | None, current_a: float | None) -> None:
-        """Configured cutoff/setpoint to draw as a reference line - not
-        persisted, this tracks the live test config/mode, not a view
-        preference. Picked up on the next redraw() rather than forcing one
-        immediately."""
-        self.target_v = voltage_v
-        self.target_a = current_a
-
     # -- tap (open view options) vs. drag (tooltip) -------------------------
     def _on_press(self, event) -> None:
         self._press_xy = (event.x, event.y)
@@ -213,15 +198,8 @@ class DualLineGraph(tk.Canvas):
             step = len(plot_pts) // plot_w
             plot_pts = plot_pts[::step]
 
-        # Widen the domain to include the target line if it's outside the
-        # visible data's own range, so it doesn't fall off-chart.
-        v_tick_lo = v_min if self.target_v is None else min(v_min, self.target_v)
-        v_tick_hi = v_max if self.target_v is None else max(v_max, self.target_v)
-        a_tick_lo = a_min if self.target_a is None else min(a_min, self.target_a)
-        a_tick_hi = a_max if self.target_a is None else max(a_max, self.target_a)
-
-        v_ticks, v_decimals = _axis_ticks(v_tick_lo, v_tick_hi, self.y_zero_based)
-        a_ticks, a_decimals = _axis_ticks(a_tick_lo, a_tick_hi, self.y_zero_based)
+        v_ticks, v_decimals = _axis_ticks(v_min, v_max, self.y_zero_based)
+        a_ticks, a_decimals = _axis_ticks(a_min, a_max, self.y_zero_based)
         v_lo, v_hi = v_ticks[0], v_ticks[-1]
         a_lo, a_hi = a_ticks[0], a_ticks[-1]
 
@@ -238,7 +216,6 @@ class DualLineGraph(tk.Canvas):
         self._draw_axis_grid(plot_w, plot_h, a_ticks, a_decimals, a_lo, a_hi,
                               CURRENT_GRID_COLOR, CURRENT_COLOR, "A", "right")
         self._draw_time_grid(plot_w, plot_h, t_min, t_max)
-        self._draw_target_lines(plot_w, plot_h, v_lo, v_hi, a_lo, a_hi)
 
         v_line = []
         a_line = []
@@ -283,21 +260,6 @@ class DualLineGraph(tk.Canvas):
             self.create_text(x, MARGIN_T + plot_h + 4, text=_format_elapsed(t_val), fill=AXIS_TEXT_COLOR,
                               anchor="n", font=("TkDefaultFont", 8))
         self.create_rectangle(MARGIN_L, MARGIN_T, MARGIN_L + plot_w, MARGIN_T + plot_h, outline=GRID_COLOR)
-
-    def _draw_target_lines(self, plot_w, plot_h, v_lo, v_hi, a_lo, a_hi) -> None:
-        for val, lo, hi, color, unit_label, side in (
-            (self.target_v, v_lo, v_hi, VOLTAGE_COLOR, "V", "left"),
-            (self.target_a, a_lo, a_hi, CURRENT_COLOR, "A", "right"),
-        ):
-            if val is None:
-                continue
-            span = max(1e-9, hi - lo)
-            y = MARGIN_T + plot_h - (val - lo) / span * plot_h
-            self.create_line(MARGIN_L, y, MARGIN_L + plot_w, y, fill=color, dash=TARGET_DASH)
-            text = f"{val:.2f}{unit_label}"
-            x = (MARGIN_L + 4) if side == "left" else (MARGIN_L + plot_w - 4)
-            anchor = "w" if side == "left" else "e"
-            self.create_text(x, y, text=text, fill=color, anchor=anchor, font=("TkDefaultFont", 8, "bold"))
 
     def _update_overlay(self, x: int) -> None:
         if self._last_plot_w is None or not self._last_pts:
