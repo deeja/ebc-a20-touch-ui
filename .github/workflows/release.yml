@@ -60,9 +60,11 @@ jobs:
           architecture: ${{ matrix.platform }}
           # "snap is unusable due to missing files" from `snap pack` has no
           # further detail at normal verbosity (confirmed across 3 prior
-          # fix attempts) - trace verbosity is the next diagnostic step to
-          # find out which file(s) it actually means.
-          snapcraft-args: --verbosity=trace
+          # fix attempts). Trace verbosity alone (v1.7) still didn't surface
+          # which file(s) it means, so add --debug too - on failure it dumps
+          # the traceback/build state before the (non-interactive, so
+          # immediately-EOF'd) debug shell would open.
+          snapcraft-args: --verbosity=trace --debug
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -87,7 +89,7 @@ jobs:
         run: python3 deploy/write_build_info.py "$GITHUB_REF_NAME"
 
       - name: Build exe
-        run: pyinstaller --name battery-tester-kiosk --onefile --windowed --hidden-import=serial.tools.list_ports main.py
+        run: pyinstaller --name battery-tester-kiosk --onefile --windowed --hidden-import=serial.tools.list_ports --icon=assets/icon.ico --add-data "assets/icon.png;assets" main.py
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -111,7 +113,7 @@ jobs:
         run: python3 deploy/write_build_info.py "$GITHUB_REF_NAME"
 
       - name: Build app
-        run: pyinstaller --name battery-tester-kiosk --onefile --windowed --hidden-import=serial.tools.list_ports main.py
+        run: pyinstaller --name battery-tester-kiosk --onefile --windowed --hidden-import=serial.tools.list_ports --icon=assets/icon.icns --add-data "assets/icon.png:assets" main.py
 
       - name: Force light appearance (Tk doesn't repaint text color for macOS dark mode)
         run: /usr/libexec/PlistBuddy -c "Add :NSRequiresAquaSystemAppearance bool true" dist/battery-tester-kiosk.app/Contents/Info.plist
