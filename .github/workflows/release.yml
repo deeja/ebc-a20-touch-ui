@@ -58,6 +58,11 @@ jobs:
         id: snapcraft
         with:
           architecture: ${{ matrix.platform }}
+          # "snap is unusable due to missing files" from `snap pack` has no
+          # further detail at normal verbosity (confirmed across 3 prior
+          # fix attempts) - trace verbosity is the next diagnostic step to
+          # find out which file(s) it actually means.
+          snapcraft-args: --verbosity=trace
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
