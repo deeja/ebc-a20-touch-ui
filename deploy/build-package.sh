@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds the downloadable source package: a .tar.gz containing just the
-# app (main.py, requirements.txt, README.md, ebc/, ui/) - for anyone who'd
+# app (main.py, requirements.txt, README.md, ebc/, ui/, assets/) - for anyone who'd
 # rather `pip install -r requirements.txt` and run from source than use a
 # packaged build (see snap/snapcraft.yaml for the Snap, and the PyInstaller
 # jobs in .github/workflows/release.yml for the Windows/macOS builds).
@@ -29,7 +29,7 @@ mkdir -p "$STAGE_DIR"
 python3 "$SCRIPT_DIR/write_build_info.py" "$VERSION"
 
 cp "$REPO_DIR/main.py" "$REPO_DIR/requirements.txt" "$REPO_DIR/README.md" "$STAGE_DIR/"
-cp -r "$REPO_DIR/ebc" "$REPO_DIR/ui" "$STAGE_DIR/"
+cp -r "$REPO_DIR/ebc" "$REPO_DIR/ui" "$REPO_DIR/assets" "$STAGE_DIR/"
 find "$STAGE_DIR" -name '__pycache__' -type d -prune -exec rm -rf {} +
 
 (cd "$DIST_DIR" && tar czf "$PKG_NAME.tar.gz" "$PKG_NAME")

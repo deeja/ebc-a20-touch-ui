@@ -44,6 +44,17 @@ from .widgets import (
 DEFAULT_W, DEFAULT_H = 1024, 600
 
 
+def _resource_path(*parts: str) -> str:
+    """Resolve a bundled asset path for all three ways this app runs: from
+    source (repo root), from a PyInstaller --onefile exe/app (files added
+    via --add-data land under sys._MEIPASS), and from the Snap (plugin:
+    dump stages the whole repo, so it's still repo-root-relative there)."""
+    base = getattr(sys, "_MEIPASS", None)
+    if base is None:
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, *parts)
+
+
 class App(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
@@ -62,6 +73,14 @@ class App(tk.Tk):
         self.title("EBC-A20 Battery Tester")
         self.configure(bg=BG)
         self.geometry(f"{DEFAULT_W}x{DEFAULT_H}")
+
+        try:
+            # Keep a reference on self - PhotoImage is garbage-collected
+            # (and the icon silently vanishes) otherwise.
+            self._icon_img = tk.PhotoImage(file=_resource_path("assets", "icon.png"))
+            self.iconphoto(True, self._icon_img)
+        except tk.TclError:
+            pass
 
         configure_ttk_style(self)
 
