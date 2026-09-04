@@ -6,8 +6,8 @@
 A native touchscreen app (but you can still use your mouse) for the ZKETECH EBC-A20 battery capacity tester.
 Python + Tkinter needs no GPU/OpenGL toolkit, so it's light enough to run
 on something as small as a Raspberry Pi Zero touchscreen kiosk, and it's
-packaged for desktop Linux, Windows, and macOS too. See **Getting a
-build** below.
+packaged for desktop Linux, Windows, and macOS too. See **Installing**
+below.
 
 | | |
 |---|---|
@@ -175,22 +175,45 @@ python main.py
 Click "Use Simulator" on the connect screen to see the full UI with
 synthetic discharge data.
 
-## Getting a build
+## Installing
 
 No specific OS assumed - grab whichever of these matches your kiosk
 machine from the [Releases page](https://github.com/deeja/batterytesterui/releases):
 
-- **Linux, including Raspberry Pi** (`battery-tester-kiosk_<version>_<arch>.snap`,
-  `arch` one of `amd64`/`arm64`/`armhf`): `sudo snap install --dangerous
-  ./battery-tester-kiosk_<version>_<arch>.snap`, then launch it with `snap
-  run battery-tester-kiosk` (or find it in your app menu). Fullscreen and
-  no-cursor kiosk mode are baked in - nothing else to set.
-- **Windows** (`battery-tester-kiosk.exe`): download and run it. Add
-  `--kiosk` for fullscreen/no-cursor mode (`battery-tester-kiosk.exe --kiosk`).
-- **macOS** (`battery-tester-kiosk-macos.zip`): download, unzip, and
-  right-click → Open the first time - it's an unsigned build, so Gatekeeper
-  will otherwise refuse to launch it. `--kiosk` for fullscreen/no-cursor
-  (`open battery-tester-kiosk.app --args --kiosk`).
+### Linux, including Raspberry Pi
+
+Download `battery-tester-kiosk_<version>_<arch>.snap` (`arch` one of
+`amd64`/`arm64`/`armhf`):
+
+```
+sudo snap install --dangerous ./battery-tester-kiosk_<version>_<arch>.snap
+snap run battery-tester-kiosk
+```
+
+(or find it in your app menu). Fullscreen and no-cursor kiosk mode are
+baked in - nothing else to set.
+
+### Windows
+
+Download `battery-tester-kiosk.exe`, then:
+
+```
+battery-tester-kiosk.exe --kiosk
+```
+
+(drop `--kiosk` for a normal windowed run)
+
+### macOS
+
+Download and unzip `battery-tester-kiosk-macos.zip`, right-click → Open
+the first time - it's an unsigned build, so Gatekeeper will otherwise
+refuse to launch it - then:
+
+```
+open battery-tester-kiosk.app --args --kiosk
+```
+
+### Touchscreen, autostart, updating
 
 Wire up the touchscreen per its own instructions - this UI defaults its
 window to 1024x600 (the JRP7006 panel it was originally built for) but
@@ -213,7 +236,13 @@ blank screen.
 On Linux, if the app can't see the port or connecting fails with a
 permissions error when running from source (not the Snap, which already
 has serial-port access via confinement), your user likely needs the
-`dialout` group: `sudo usermod -aG dialout $USER`, then log out and back in.
+`dialout` group:
+
+```
+sudo usermod -aG dialout $USER
+```
+
+then log out and back in.
 
 ## Project layout
 
