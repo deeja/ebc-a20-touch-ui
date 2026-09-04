@@ -14,6 +14,7 @@ from ebc.sequencer import AutoCycleController
 
 from .graph import DualLineGraph
 from .settings_screen import SettingsScreen
+from .warning_screen import WarningScreen, warning_acknowledged
 from .widgets import (
     ACCENT_BLUEGREY,
     ACCENT_GREEN,
@@ -53,7 +54,8 @@ class App(tk.Tk):
         self.connect_screen = ConnectScreen(self.container, self)
         self.main_screen = MainScreen(self.container, self)
         self.settings_screen = SettingsScreen(self.container, self)
-        for screen in (self.connect_screen, self.main_screen, self.settings_screen):
+        self.warning_screen = WarningScreen(self.container, self.show_connect)
+        for screen in (self.connect_screen, self.main_screen, self.settings_screen, self.warning_screen):
             screen.place(relx=0, rely=0, relwidth=1, relheight=1)
 
         self._fullscreen = False
@@ -68,7 +70,10 @@ class App(tk.Tk):
             self.bind("<Escape>", lambda e: self._toggle_fullscreen(False))
             self.bind("<F11>", lambda e: self._toggle_fullscreen())
 
-        self.show_connect()
+        if warning_acknowledged():
+            self.show_connect()
+        else:
+            self.warning_screen.lift()
 
     def _toggle_fullscreen(self, force: bool | None = None) -> None:
         self._fullscreen = (not self._fullscreen) if force is None else force
