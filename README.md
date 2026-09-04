@@ -1,13 +1,21 @@
-# Cross platform EBC-A20 Battery Tester UI
-## Linux, Mac, or Windows
+# Cross platform UI for the EBC-A20 Battery Tester
+## You can zap your batteries full of ergs on Linux, Mac, or Windows
 
 ![Main screen mid-discharge in constant-power mode](docs/screenshots/05-main-screen-discharge-cp.png)
 
-A native touchscreen app for the ZKETECH EBC-A20 battery capacity tester.
+A native touchscreen app (but you can still use your mouse) for the ZKETECH EBC-A20 battery capacity tester.
 Python + Tkinter needs no GPU/OpenGL toolkit, so it's light enough to run
 on something as small as a Raspberry Pi Zero touchscreen kiosk, and it's
 packaged for desktop Linux, Windows, and macOS too. See **Getting a
 build** below.
+
+| | |
+|---|---|
+| ![Configure screen - LiFePO4 12V/4S preset, Repeat mode](docs/screenshots/01-configure.png) | ![Main screen mid-charge in Repeat mode](docs/screenshots/02-main-screen-charging.png) |
+| Configure - battery preset, mode, and parameters | Main screen - live chart, readouts, controls |
+| ![Chart view popup open over the live chart](docs/screenshots/03-chart-view-popup.png) | ![Raw Values screen with hex and decoded frames](docs/screenshots/04-raw-values.png) |
+| Chart view popup - scroll window, Fit All, zero baseline, Export, Clear | Raw Values - hex alongside decoded fields |
+
 
 > ## ⚠️ FOR EXPERTS ONLY - READ BEFORE USE
 >
@@ -114,17 +122,6 @@ CONTINUE commands exist in the protocol but aren't wired up).
    fields, with Export/Clear buttons and an Autoscroll checkbox. Only
    populated against real hardware - the simulator has no real serial
    frames to show, so this stays empty when using it.
-
-## Screenshots
-
-Taken running against real hardware - a 4S LiFePO4 pack on the EBC-A20.
-
-| | |
-|---|---|
-| ![Configure screen - LiFePO4 12V/4S preset, Repeat mode](docs/screenshots/01-configure.png) | ![Main screen mid-charge in Repeat mode](docs/screenshots/02-main-screen-charging.png) |
-| Configure - battery preset, mode, and parameters | Main screen - live chart, readouts, controls |
-| ![Chart view popup open over the live chart](docs/screenshots/03-chart-view-popup.png) | ![Raw Values screen with hex and decoded frames](docs/screenshots/04-raw-values.png) |
-| Chart view popup - scroll window, Fit All, zero baseline, Export, Clear | Raw Values - hex alongside decoded fields |
 
 ## ⚠️ Protocol verification status
 
