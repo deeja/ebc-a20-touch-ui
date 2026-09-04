@@ -45,7 +45,7 @@ class TestConfig:
     repeat_charge_cutoff_ma: int = 100
     repeat_discharge_current_ma: int = 1000
     repeat_discharge_cutoff_mv: int = 3000
-    repeat_rest_min: int = 5
+    repeat_rest_min: int = 51
     repeat_cycle_count: int = 1
     repeat_continuous: bool = False
 

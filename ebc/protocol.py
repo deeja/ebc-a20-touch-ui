@@ -61,22 +61,22 @@ STATUS_TEXT = {
     # CC discharge
     0x00: "Idle",
     0x0A: "Discharging",
-    0x14: "Finished",
+    0x14: "Finished CC",
     # CP discharge
     0x01: "Idle",
-    0x0B: "Discharging (CP)",
-    0x15: "Finished",
+    0x0B: "Discharging CP",
+    0x15: "Finished CP",
     # CV charge
     0x02: "Idle",
     0x0C: "Charging",
     0x16: "Finished",
     # firmware report, first ~15s after CONNECT
-    0x64: "Idle (last: CC discharge)",
-    0x65: "Idle (last: CP discharge)",
-    0x66: "Idle (last: CV charge)",
-    0x6E: "Discharging (CC)",
-    0x6F: "Discharging (CP)",
-    0x70: "Charging (CV)",
+    0x64: "Idle", # (CC discharge)
+    0x65: "Idle", # (CP discharge)
+    0x66: "Idle", # (CV charge)
+    0x6E: "Discharging CC",
+    0x6F: "Discharging CP",
+    0x70: "Charging CV",
 }
 
 # Status code that means "this leg is done", per mode - used by the repeat

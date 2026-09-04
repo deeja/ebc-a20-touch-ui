@@ -164,10 +164,13 @@ class MainScreen(tk.Frame):
 
         top = tk.Frame(self, bg=BG)
         top.pack(fill="x", padx=10, pady=(8, 4))
-        self.battery_label = tk.Label(top, text="", font=("TkDefaultFont", 12, "bold"), bg=BG, fg=TEXT)
-        self.battery_label.pack(side="left")
-        self.mode_label = tk.Label(top, text="", font=("TkDefaultFont", 12), bg=BG, fg=TEXT_MUTED)
-        self.mode_label.pack(side="left", padx=(14, 0))
+
+        title_col = tk.Frame(top, bg=BG)
+        title_col.pack(side="left")
+        self.battery_label = tk.Label(title_col, text="", font=("TkDefaultFont", 12, "bold"), bg=BG, fg=TEXT)
+        self.battery_label.pack(anchor="w")
+        self.mode_label = tk.Label(title_col, text="", font=("TkDefaultFont", 12), bg=BG, fg=TEXT_MUTED)
+        self.mode_label.pack(anchor="w")
 
         # side="right" packs each new button to the left of the previous
         # one, so pack in reverse of the desired left-to-right order to get
@@ -235,6 +238,7 @@ class MainScreen(tk.Frame):
         self.mode_label.config(text=cfg.summary())
         self._set_sequencer_text("")
         self._set_warning_text("")
+        self.tile_status.set("--")
         self._refresh_controls()
         self._poll_job = self.after(self.POLL_MS, self._drain_queue)
         self._redraw_job = self.after(self.REDRAW_MS, self._redraw_loop)
