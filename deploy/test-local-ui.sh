@@ -9,7 +9,7 @@
 # hardware instead of just the simulator.
 #
 #   bash deploy/test-local-ui.sh                        # normal windowed mode
-#   bash deploy/test-local-ui.sh --kiosk                 # EBC_KIOSK=1, as install.sh runs it
+#   bash deploy/test-local-ui.sh --kiosk                 # EBC_KIOSK=1, fullscreen/no-cursor kiosk preview
 #   bash deploy/test-local-ui.sh --device=/dev/ttyUSB0   # skip the prompt
 set -e
 

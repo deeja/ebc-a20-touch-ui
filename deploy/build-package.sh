@@ -1,7 +1,9 @@
 #!/bin/sh
-# Builds the downloadable deployment package: a .tar.gz containing the app
-# plus deploy/install.sh and its kiosk templates, ready to extract on a Pi
-# and run `sh deploy/install.sh` from inside it.
+# Builds the downloadable source package: a .tar.gz containing just the
+# app (main.py, requirements.txt, README.md, ebc/, ui/) - for anyone who'd
+# rather `pip install -r requirements.txt` and run from source than use a
+# packaged build (see snap/snapcraft.yaml for the Snap, and the PyInstaller
+# jobs in .github/workflows/release.yml for the Windows/macOS builds).
 #
 #   bash deploy/build-package.sh [version]
 #
@@ -19,14 +21,11 @@ DIST_DIR="$REPO_DIR/dist"
 STAGE_DIR="$DIST_DIR/$PKG_NAME"
 
 rm -rf "$STAGE_DIR"
-mkdir -p "$STAGE_DIR/deploy"
+mkdir -p "$STAGE_DIR"
 
 cp "$REPO_DIR/main.py" "$REPO_DIR/requirements.txt" "$REPO_DIR/README.md" "$STAGE_DIR/"
 cp -r "$REPO_DIR/ebc" "$REPO_DIR/ui" "$STAGE_DIR/"
 find "$STAGE_DIR" -name '__pycache__' -type d -prune -exec rm -rf {} +
-
-cp "$REPO_DIR/deploy/install.sh" "$REPO_DIR/deploy/xinitrc.template" \
-   "$REPO_DIR/deploy/profile-kiosk-block" "$STAGE_DIR/deploy/"
 
 (cd "$DIST_DIR" && tar czf "$PKG_NAME.tar.gz" "$PKG_NAME")
 rm -rf "$STAGE_DIR"

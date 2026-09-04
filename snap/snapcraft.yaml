@@ -1,0 +1,53 @@
+name: battery-tester-kiosk
+base: core22
+version: git
+summary: Touchscreen UI for the ZKETECH EBC-A20 battery tester
+description: |
+  A touchscreen kiosk app for the ZKETECH EBC-A20 battery capacity tester.
+  Runs in fullscreen/no-cursor kiosk mode by default. See
+  https://github.com/deeja/batterytesterui for details, screenshots, and
+  usage.
+grade: stable
+confinement: strict
+
+apps:
+  battery-tester-kiosk:
+    command: usr/bin/python3 $SNAP/main.py
+    extensions: [gnome]
+    plugs:
+      - serial-port
+      - home
+    environment:
+      # python3-tk on core22 (Ubuntu 22.04/jammy) pulls in Tcl/Tk 8.6 -
+      # Tkinter can't find its script libraries inside the confined snap
+      # without these pointed at the staged copies explicitly.
+      TCL_LIBRARY: $SNAP/usr/share/tcltk/tcl8.6
+      TK_LIBRARY: $SNAP/usr/share/tcltk/tk8.6
+      # Baked in rather than left to the user - this snap only exists for
+      # kiosk deployment, unlike a plain `pip install` from source.
+      EBC_KIOSK: "1"
+
+parts:
+  battery-tester-kiosk:
+    # The `python` plugin is a known-bad fit for Tkinter apps (segfaults,
+    # missing fontconfig - see the snapcraft forum thread "Tkinter doesn't
+    # work with the python plugin"). Dumping the source directly and
+    # pulling Tkinter/pyserial from apt (stage-packages), same as this
+    # project's old install.sh did, avoids that whole class of problem -
+    # this app has no setup.py/pyproject.toml to give the python plugin
+    # anything to build anyway.
+    plugin: dump
+    source: .
+    stage-packages:
+      - python3-tk
+      - python3-serial
+      - fontconfig-config
+      - fonts-dejavu-extra
+    prime:
+      - -.git
+      - -.github
+      - -deploy
+      - -docs
+      - -snap
+      - -requirements.txt
+      - -README.md

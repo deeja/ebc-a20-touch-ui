@@ -6,6 +6,11 @@ on:
       - "v*"
 
 jobs:
+  # Plain source tarball - for anyone who'd rather `pip install -r
+  # requirements.txt` and run from source. Runs first; the packaged-build
+  # jobs below depend on it so only one job ever creates the GitHub
+  # release (avoids a race between concurrent `action-gh-release` calls),
+  # the rest just append their own asset to it.
   package:
     runs-on: ubuntu-latest
     steps:
@@ -20,3 +25,78 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*.tar.gz
+
+  # Linux (including Raspberry Pi) - a Snap for each of amd64/arm64/armhf.
+  # arm64/armhf are QEMU-emulated on the amd64 runner; fail-fast is off so
+  # one flaky arch doesn't take the others down with it (see
+  # snap/snapcraft.yaml's header comment and the project README for why
+  # this needed real iteration to land, mirroring known QEMU-under-CI
+  # instability from this project's history).
+  build-snap:
+    needs: package
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [amd64, arm64, armhf]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: diddlesnaps/snapcraft-multiarch-action@v1
+        id: snapcraft
+        with:
+          architecture: ${{ matrix.platform }}
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.snapcraft.outputs.snap }}
+
+  build-windows-exe:
+    needs: package
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build exe
+        run: pyinstaller --name battery-tester-kiosk --onefile --windowed --hidden-import=serial.tools.list_ports main.py
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/battery-tester-kiosk.exe
+
+  build-macos-app:
+    needs: package
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build app
+        run: pyinstaller --name battery-tester-kiosk --onefile --windowed --hidden-import=serial.tools.list_ports main.py
+
+      - name: Zip app bundle
+        run: |
+          cd dist
+          ditto -c -k --sequesterRsrc --keepParent battery-tester-kiosk.app ../battery-tester-kiosk-macos.zip
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: battery-tester-kiosk-macos.zip

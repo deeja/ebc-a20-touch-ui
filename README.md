@@ -179,51 +179,45 @@ python main.py
 Click "Use Simulator" on the connect screen to see the full UI with
 synthetic discharge data.
 
-## Raspberry Pi setup
+## Getting a build
 
-Targets a headless Raspberry Pi OS Lite install (no desktop environment) —
-the app runs as the only thing on the display, launched via a minimal X
-session on the console.
+No specific OS assumed - grab whichever of these matches your kiosk
+machine from the [Releases page](https://github.com/deeja/batterytesterui/releases):
 
-1. Flash Raspberry Pi OS Lite, enable SSH, get the Pi on the network (needed
-   for this one-time setup only — the running kiosk needs no network at all).
-2. Wire up the JRP7006 touchscreen per its own instructions (HDMI + USB for
-   touch; it's a 1024x600 panel, which is what the UI defaults its window
-   size to — it also reads the real screen size at runtime, so this isn't
-   load-bearing).
-3. Get the app onto the Pi, e.g. `/home/pi/batterytesterui`. Either
-   `git clone` this repo, or download and extract a packaged release from
-   the [Releases page](https://github.com/deeja/batterytesterui/releases)
-   (a `battery-tester-kiosk-<version>.tar.gz` containing just the app and
-   `deploy/`, no dev-only files).
-4. From inside that directory: `sh deploy/install.sh` — installs
-   `python3-tk`/`python3-serial`/`xserver-xorg`/`xinit` from apt (no
-   compiling), adds your user to the groups needed to open the serial port
-   and drive the display/touch devices, enables console autologin on tty1,
-   and wires `~/.profile` + `~/.xinitrc` to launch the UI full-screen with
-   the cursor hidden and screen blanking disabled as soon as that console
-   logs in. Safe to re-run.
-5. Reboot. The app should come up full-screen on the touchscreen with no
-   login prompt.
+- **Linux, including Raspberry Pi** (`battery-tester-kiosk_<version>_<arch>.snap`,
+  `arch` one of `amd64`/`arm64`/`armhf`): `sudo snap install --dangerous
+  ./battery-tester-kiosk_<version>_<arch>.snap`, then launch it with `snap
+  run battery-tester-kiosk` (or find it in your app menu). Fullscreen and
+  no-cursor kiosk mode are baked in - nothing else to set.
+- **Windows** (`battery-tester-kiosk.exe`): download and run it. Add
+  `--kiosk` for fullscreen/no-cursor mode (`battery-tester-kiosk.exe --kiosk`).
+- **macOS** (`battery-tester-kiosk-macos.zip`): download, unzip, and
+  right-click → Open the first time - it's an unsigned build, so Gatekeeper
+  will otherwise refuse to launch it. `--kiosk` for fullscreen/no-cursor
+  (`open battery-tester-kiosk.app --args --kiosk`).
 
-This is also the path for updating an already-deployed unit in place
-(`git pull`, or download the newer release package, then re-run
-`install.sh`) — there's no separate image to rebuild and reflash.
+Wire up the touchscreen per its own instructions - this UI defaults its
+window to 1024x600 (the JRP7006 panel it was originally built for) but
+reads the real screen size at runtime, so any size bigger than that should work.
+
+To have it launch automatically on boot, point whatever autostart
+mechanism your OS already offers at that same command - the Snap's own
+`snap start --enable battery-tester-kiosk`, a Windows Task Scheduler task
+or Startup-folder shortcut running the `.exe` with `--kiosk`, a macOS Login
+Item pointing at the `.app` - there's nothing else app-specific to wire up.
+Updating is the same as installing: grab the newer release and install it
+the same way, over or alongside the old copy.
 
 ### Troubleshooting
 
-To run it manually instead of at boot: `python3 main.py` (from an SSH
-session, or a manual `startx` on the console).
+Run it from a terminal rather than however you've auto-started it - any
+startup error will print there instead of just failing silently on a
+blank screen.
 
-If the kiosk fails to come up, SSH in and check `journalctl -t ebc-kiosk`
-for a traceback. If that's empty, the app never got launched at all - check
-`~/.local/share/xorg/Xorg.0.log` for an X-server startup failure instead
-(most commonly `/etc/X11/Xwrapper.config` not allowing console-started X
-sessions, which `install.sh` sets automatically, but re-check it if you've
-customized that file).
-
-For the full design rationale behind the kiosk setup, see
-[`docs/pi-kiosk-plan.md`](docs/pi-kiosk-plan.md).
+On Linux, if the app can't see the port or connecting fails with a
+permissions error when running from source (not the Snap, which already
+has serial-port access via confinement), your user likely needs the
+`dialout` group: `sudo usermod -aG dialout $USER`, then log out and back in.
 
 ## Project layout
 
@@ -242,9 +236,10 @@ ui/graph.py               live chart (Tkinter Canvas): auto-scaled axes, drag to
 ui/warning_screen.py       one-time safety disclaimer, remembered via ui/prefs.py
 ui/prefs.py                 shared JSON prefs file (chart view settings, warning acknowledgement)
 ui/widgets.py              touch-sized buttons / steppers / dropdowns / toggles
-deploy/                     install script + kiosk-launch templates
-deploy/build-package.sh      builds the downloadable release .tar.gz
-deploy/test-local-install.sh  tests build-package.sh + install.sh in Docker
+snap/snapcraft.yaml         Snap package definition (Linux, incl. Raspberry Pi)
+deploy/build-package.sh      builds the downloadable source .tar.gz
 deploy/test-local-ui.sh       runs the app in Docker, forwarded to your X server
-docs/pi-kiosk-plan.md       Pi kiosk deployment design rationale
+.github/workflows/release.yml builds and publishes all 4 release artifacts
+                              (source tarball, Snap x3 arches, Windows .exe,
+                              macOS .app) on every `v*` tag push
 ```
