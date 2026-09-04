@@ -1,5 +1,7 @@
 # EBC-A20 Battery Tester UI
 
+![Main screen mid-discharge in constant-power mode](docs/screenshots/05-main-screen-discharge-cp.png)
+
 A native touchscreen app for the ZKETECH EBC-A20 battery capacity tester,
 built for a Raspberry Pi Zero + JRP7006 touchscreen. Python + Tkinter (no
 GPU/OpenGL toolkit, so it runs on an original armv6 Pi Zero without
@@ -24,9 +26,6 @@ compiling anything from source).
 > bugs, incorrect readings, or protocol misinterpretation (see the protocol
 > verification status below). You use it, and the hardware it controls,
 > entirely at your own risk.
-
-## Huge thanks to
-
 
 ## A note on AI assistance and other libraries, etcetera...
 
@@ -124,8 +123,6 @@ Taken running against real hardware - a 4S LiFePO4 pack on the EBC-A20.
 | Configure - battery preset, mode, and parameters | Main screen - live chart, readouts, controls |
 | ![Chart view popup open over the live chart](docs/screenshots/03-chart-view-popup.png) | ![Raw Values screen with hex and decoded frames](docs/screenshots/04-raw-values.png) |
 | Chart view popup - scroll window, Fit All, zero baseline, Export, Clear | Raw Values - hex alongside decoded fields |
-| ![Main screen mid-discharge in constant-power mode](docs/screenshots/05-main-screen-discharge-cp.png) | |
-| Main screen - a later run, discharging at constant power | |
 
 ## ⚠️ Protocol verification status
 
