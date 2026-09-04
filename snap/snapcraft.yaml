@@ -51,6 +51,14 @@ parts:
     plugin: dump
     source: .
     stage-packages:
+      # python3 explicit, not left to transitive resolution - across two
+      # failed builds (with and without the gnome extension) the staged-
+      # package list never actually included the interpreter itself, only
+      # python3-tk/python3-serial's non-interpreter deps, so `usr/bin/
+      # python3` - this app's own `command:` target - was never guaranteed
+      # to exist in the final prime, which is exactly what "snap is
+      # unusable due to missing files" was complaining about.
+      - python3
       - python3-tk
       - python3-serial
       - fontconfig-config
