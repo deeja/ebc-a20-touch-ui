@@ -212,11 +212,25 @@ refuse to launch it - then:
 open battery-tester-kiosk.app --args --kiosk
 ```
 
-## Running it
+## Development or running from the repo:
 
-On a dev machine (Windows/Mac/Linux), no hardware needed:
+On a dev machine (Windows/Mac/Linux):
 
 ```bash
 pip install -r requirements.txt
 python main.py
 ```
+
+Other dependencies, beyond what `pip install` covers:
+
+- **Tkinter** - not a pip package, comes bundled with Python on Windows/Mac;
+  on Debian/Ubuntu Linux install it separately: `sudo apt install python3-tk`.
+- **Docker** - only if you want to run `deploy/test-local-ui.sh` (the app in
+  a container, forwarded to your host X server) instead of installing
+  `python3-tk`/`pyserial` locally.
+- **PyInstaller** (`pip install pyinstaller`) - only needed to build the
+  Windows `.exe`/macOS `.app` yourself instead of grabbing one from
+  Releases; see the `build-windows-exe`/`build-macos-app` jobs in
+  `.github/workflows/release.yml` for the exact build command.
+- **snapcraft** - only needed to build the Linux `.snap` yourself instead
+  of grabbing one from Releases; see `snap/snapcraft.yaml`.
