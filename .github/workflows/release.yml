@@ -5,6 +5,13 @@ on:
     tags:
       - "v*"
 
+# All 4 jobs create/update a GitHub release (softprops/action-gh-release) -
+# needs contents: write explicitly, since GitHub now defaults new repos'
+# GITHUB_TOKEN to read-only ("Resource not accessible by integration"
+# otherwise).
+permissions:
+  contents: write
+
 jobs:
   # Plain source tarball - for anyone who'd rather `pip install -r
   # requirements.txt` and run from source. Runs first; the packaged-build
