@@ -13,10 +13,22 @@ confinement: strict
 apps:
   battery-tester-kiosk:
     command: usr/bin/python3 $SNAP/main.py
-    extensions: [gnome]
+    # Not `extensions: [gnome]` - on core22 that extension is documented to
+    # rewrite/break the python3 symlinks it doesn't itself own (see
+    # "Core22 gnome extension and broken symlinks" on the snapcraft forum),
+    # which took out this app's own staged python3 and made `snapcraft
+    # pack` fail with "snap is unusable due to missing files". Plain
+    # desktop plugs - the fix that already worked for other people's
+    # Tkinter-in-a-snap reports before anyone reached for the extension -
+    # sidesteps that whole failure mode.
     plugs:
       - serial-port
       - home
+      - x11
+      - desktop
+      - desktop-legacy
+      - wayland
+      - opengl
     environment:
       # python3-tk on core22 (Ubuntu 22.04/jammy) pulls in Tcl/Tk 8.6 -
       # Tkinter can't find its script libraries inside the confined snap
