@@ -163,18 +163,6 @@ in that one example; the plain-XOR algorithm it describes in prose is what
 this driver implements, and it's corroborated independently by the
 enkiusz gist.
 
-## Running it
-
-On a dev machine (Windows/Mac/Linux), no hardware needed:
-
-```
-pip install -r requirements.txt
-python main.py
-```
-
-Click "Use Simulator" on the connect screen to see the full UI with
-synthetic discharge data.
-
 ## Installing
 
 No specific OS assumed - grab whichever of these matches your kiosk
@@ -185,7 +173,7 @@ machine from the [Releases page](https://github.com/deeja/batterytesterui/releas
 Download `battery-tester-kiosk_<version>_<arch>.snap` (`arch` one of
 `amd64`/`arm64`/`armhf`):
 
-```
+```bash
 sudo snap install --dangerous ./battery-tester-kiosk_<version>_<arch>.snap
 snap run battery-tester-kiosk
 ```
@@ -193,11 +181,22 @@ snap run battery-tester-kiosk
 (or find it in your app menu). Fullscreen and no-cursor kiosk mode are
 baked in - nothing else to set.
 
+If the app can't see the port or connecting fails with a
+permissions error when running from source (not the Snap, which already
+has serial-port access via confinement), your user likely needs the
+`dialout` group:
+
+```bash
+sudo usermod -aG dialout $USER
+```
+
+then log out and back in.
+
 ### Windows
 
 Download `battery-tester-kiosk.exe`, then:
 
-```
+```bash
 battery-tester-kiosk.exe --kiosk
 ```
 
@@ -213,58 +212,11 @@ refuse to launch it - then:
 open battery-tester-kiosk.app --args --kiosk
 ```
 
-### Touchscreen, autostart, updating
+## Running it
 
-Wire up the touchscreen per its own instructions - this UI defaults its
-window to 1024x600 (the JRP7006 panel it was originally built for) but
-reads the real screen size at runtime, so any size bigger than that should work.
+On a dev machine (Windows/Mac/Linux), no hardware needed:
 
-To have it launch automatically on boot, point whatever autostart
-mechanism your OS already offers at that same command - the Snap's own
-`snap start --enable battery-tester-kiosk`, a Windows Task Scheduler task
-or Startup-folder shortcut running the `.exe` with `--kiosk`, a macOS Login
-Item pointing at the `.app` - there's nothing else app-specific to wire up.
-Updating is the same as installing: grab the newer release and install it
-the same way, over or alongside the old copy.
-
-### Troubleshooting
-
-Run it from a terminal rather than however you've auto-started it - any
-startup error will print there instead of just failing silently on a
-blank screen.
-
-On Linux, if the app can't see the port or connecting fails with a
-permissions error when running from source (not the Snap, which already
-has serial-port access via confinement), your user likely needs the
-`dialout` group:
-
-```
-sudo usermod -aG dialout $USER
-```
-
-then log out and back in.
-
-## Project layout
-
-```
-main.py               entry point
-ebc/protocol.py        frame encode/decode, checksum, base-240 values, status codes, RawFrame (raw+decoded pairing for the Raw Values screen)
-ebc/device.py           real EbcDevice (serial thread -> Queue of Sample, plus a raw_queue of every frame incl. checksum failures)
-ebc/mock_device.py       MockEbcDevice, same interface, simulates all 3 modes (raw_queue stays empty - no real frames to show)
-ebc/presets.py            battery chemistry preset table
-ebc/config.py              TestConfig - the currently active mode + all per-mode params
-ebc/sequencer.py            AutoCycleController - repeat-mode state machine
-ui/app.py                connect screen + main (live) screen
-ui/settings_screen.py     battery/mode/param configuration screen
-ui/raw_screen.py           Raw Values screen - virtual-scroll log of raw frames + decoded fields
-ui/graph.py               live chart (Tkinter Canvas): auto-scaled axes, drag tooltip, tap-to-open view popup (scroll window / Fit All / zero baseline / Export / Clear)
-ui/warning_screen.py       one-time safety disclaimer, remembered via ui/prefs.py
-ui/prefs.py                 shared JSON prefs file (chart view settings, warning acknowledgement)
-ui/widgets.py              touch-sized buttons / steppers / dropdowns / toggles
-snap/snapcraft.yaml         Snap package definition (Linux, incl. Raspberry Pi)
-deploy/build-package.sh      builds the downloadable source .tar.gz
-deploy/test-local-ui.sh       runs the app in Docker, forwarded to your X server
-.github/workflows/release.yml builds and publishes all 4 release artifacts
-                              (source tarball, Snap x3 arches, Windows .exe,
-                              macOS .app) on every `v*` tag push
+```bash
+pip install -r requirements.txt
+python main.py
 ```
