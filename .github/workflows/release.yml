@@ -49,6 +49,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Write build info
+        run: python3 deploy/write_build_info.py "$GITHUB_REF_NAME"
+
       - uses: docker/setup-qemu-action@v3
 
       - uses: diddlesnaps/snapcraft-multiarch-action@v1
@@ -74,6 +77,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt pyinstaller
 
+      - name: Write build info
+        shell: bash
+        run: python3 deploy/write_build_info.py "$GITHUB_REF_NAME"
+
       - name: Build exe
         run: pyinstaller --name battery-tester-kiosk --onefile --windowed --hidden-import=serial.tools.list_ports main.py
 
@@ -94,6 +101,9 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt pyinstaller
+
+      - name: Write build info
+        run: python3 deploy/write_build_info.py "$GITHUB_REF_NAME"
 
       - name: Build app
         run: pyinstaller --name battery-tester-kiosk --onefile --windowed --hidden-import=serial.tools.list_ports main.py

@@ -5,6 +5,7 @@ import queue
 import sys
 import time
 import tkinter as tk
+import webbrowser
 
 from ebc import config as cfgmod
 from ebc import presets
@@ -13,6 +14,7 @@ from ebc.device import EbcDevice
 from ebc.mock_device import MockEbcDevice
 from ebc.sequencer import AutoCycleController
 
+from . import build_info
 from .graph import DualLineGraph
 from .raw_screen import RawScreen
 from .settings_screen import SettingsScreen
@@ -23,10 +25,16 @@ from .widgets import (
     ACCENT_RED,
     BG,
     BTN_BG,
+    ConfirmDialog,
+    FONT_MED,
+    FONT_SMALL,
+    PANEL_BG,
+    SELECTED_BORDER,
     TEXT,
     TEXT_MUTED,
     ReadoutTile,
     big_button,
+    center_on_parent,
     configure_ttk_style,
 )
 
@@ -113,6 +121,58 @@ class App(tk.Tk):
         self.device = device
 
 
+class AboutDialog(tk.Toplevel):
+    """Small modal About popup - GitHub name, repo link, version, and build
+    date - styled like the other borderless touch dialogs in this app (see
+    ui/widgets.py's ConfirmDialog/InfoDialog, which center_on_parent is
+    shared with)."""
+
+    GITHUB_NAME = "deeja"
+    PROFILE_URL = f"https://github.com/{GITHUB_NAME}"
+    REPO_URL = "https://github.com/deeja/batterytesterui"
+
+    def __init__(self, master: tk.Misc):
+        super().__init__(master, bg=PANEL_BG)
+        self.overrideredirect(True)
+
+        tk.Label(self, text="EBC-A20 Battery Tester", font=FONT_MED, bg=PANEL_BG, fg=TEXT) \
+            .pack(padx=24, pady=(20, 10))
+
+        info = tk.Frame(self, bg=PANEL_BG)
+        info.pack(padx=24, pady=(0, 4))
+
+        author_link = tk.Label(info, text=f"This is a @{self.GITHUB_NAME} production.", font=FONT_SMALL, bg=PANEL_BG,
+                                fg=SELECTED_BORDER, cursor="hand2")
+        author_link.pack(anchor="w")
+        author_link.bind("<Button-1>", self._open_profile)
+
+        link = tk.Label(info, text=self.REPO_URL, font=FONT_SMALL, bg=PANEL_BG,
+                         fg=SELECTED_BORDER, cursor="hand2")
+        link.pack(anchor="w", pady=(6, 0))
+        link.bind("<Button-1>", self._open_repo)
+
+        version_text = f"Version {build_info.VERSION}" if build_info.VERSION else "Version unknown"
+        tk.Label(info, text=version_text, font=FONT_SMALL, bg=PANEL_BG, fg=TEXT_MUTED) \
+            .pack(anchor="w", pady=(10, 0))
+        if build_info.BUILD_DATE:
+            tk.Label(info, text=f"Built {build_info.BUILD_DATE}", font=FONT_SMALL, bg=PANEL_BG, fg=TEXT_MUTED) \
+                .pack(anchor="w")
+
+        big_button(self, "Close", self.destroy, bg=BTN_BG, fg=TEXT).pack(fill="x", padx=14, pady=(14, 14))
+
+        self.transient(master.winfo_toplevel())
+        center_on_parent(self, master.winfo_toplevel())
+        self.lift()
+        self.focus_force()
+        self.grab_set()
+
+    def _open_profile(self, _event=None) -> None:
+        webbrowser.open(self.PROFILE_URL)
+
+    def _open_repo(self, _event=None) -> None:
+        webbrowser.open(self.REPO_URL)
+
+
 class ConnectScreen(tk.Frame):
     def __init__(self, master, app: App):
         super().__init__(master, bg=BG)
@@ -195,9 +255,10 @@ class MainScreen(tk.Frame):
 
         # side="right" packs each new button to the left of the previous
         # one, so pack in reverse of the desired left-to-right order to get
-        # Raw / Configure / Start / Stop / Disconnect.
-        big_button(top, "Disconnect", self.disconnect, bg=ACCENT_RED, fg="white").pack(side="right")
-        self.stop_btn = big_button(top, "Stop", self.stop_test, bg=ACCENT_RED, fg="white")
+        # Raw / Configure / Start / Stop / Disconnect / ?.
+        big_button(top, "?", self.open_about, bg=SELECTED_BORDER, fg="white").pack(side="right")
+        big_button(top, "Disconnect", self._confirm_disconnect, bg=ACCENT_RED, fg="white").pack(side="right", padx=(0, 6))
+        self.stop_btn = big_button(top, "Stop", self._confirm_stop, bg=ACCENT_RED, fg="white")
         self.stop_btn.pack(side="right", padx=(0, 6))
         self.start_btn = big_button(top, "Start", self.start_test, bg=ACCENT_GREEN, fg="white")
         self.start_btn.pack(side="right", padx=(0, 6))
@@ -293,6 +354,15 @@ class MainScreen(tk.Frame):
 
     def open_raw(self) -> None:
         self.app.show_raw()
+
+    def open_about(self) -> None:
+        AboutDialog(self)
+
+    def _confirm_stop(self) -> None:
+        ConfirmDialog(self, "Stop the current test?", self.stop_test, confirm_label="Stop")
+
+    def _confirm_disconnect(self) -> None:
+        ConfirmDialog(self, "Disconnect from the device?", self.disconnect, confirm_label="Disconnect")
 
     def _cancel_loops(self) -> None:
         for attr in ("_poll_job", "_redraw_job"):

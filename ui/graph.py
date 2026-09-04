@@ -18,7 +18,6 @@ import time
 import tkinter as tk
 from collections import deque
 from datetime import datetime
-from typing import Callable
 
 from . import prefs as prefsmod
 from .widgets import (
@@ -26,9 +25,11 @@ from .widgets import (
     BORDER,
     BTN_ACTIVE_BG,
     BTN_BG,
+    ConfirmDialog,
     FONT_LARGE,
     FONT_MED,
     FONT_SMALL,
+    InfoDialog,
     NumpadDialog,
     PANEL_BG,
     SELECTED_BG,
@@ -37,6 +38,7 @@ from .widgets import (
     TEXT_MUTED,
     ToggleButton,
     big_button,
+    center_on_parent,
 )
 
 VOLTAGE_COLOR = "#c62828"
@@ -207,7 +209,17 @@ class DualLineGraph(tk.Canvas):
         plot_h = max(1, h - MARGIN_T - MARGIN_B)
 
         t_max = self._points[-1][0]
-        t_min = self._points[0][0] if self.fit_all else t_max - self.window_seconds
+        if self.fit_all:
+            t_min = self._points[0][0]
+        else:
+            # Don't let the window's left edge extend before any real data
+            # exists - otherwise the line only fills the right portion of
+            # the plot until enough time has passed to fill the whole
+            # configured window, which reads as "the lines don't reach all
+            # the way left". Fill the available width with what's there
+            # instead; once there's more than window_seconds of data this
+            # is equivalent to the fixed scrolling window as before.
+            t_min = max(self._points[0][0], t_max - self.window_seconds)
         pts = [p for p in self._points if p[0] >= t_min]
         if len(pts) < 2:
             self._last_plot_w = None
@@ -227,7 +239,7 @@ class DualLineGraph(tk.Canvas):
 
         v_ticks, v_decimals = _axis_ticks(v_min, v_max, self.y_zero_based)
         a_ticks, a_decimals = _axis_ticks(a_min, a_max, self.y_zero_based)
-        cap_ticks, cap_decimals = _axis_ticks(cap_min, cap_max, self.y_zero_based)
+        cap_ticks, cap_decimals = _axis_ticks(cap_min, cap_max, self.y_zero_based, whole_only=True)
         v_lo, v_hi = v_ticks[0], v_ticks[-1]
         a_lo, a_hi = a_ticks[0], a_ticks[-1]
         cap_lo, cap_hi = cap_ticks[0], cap_ticks[-1]
@@ -369,7 +381,7 @@ class GraphViewDialog(tk.Toplevel):
         big_button(self, "Clear Graph", self._clear_graph, bg=ACCENT_RED, fg="white").pack(fill="x", padx=14, pady=(0, 14))
 
         self.transient(master.winfo_toplevel())
-        _center_on_parent(self, master.winfo_toplevel())
+        center_on_parent(self, master.winfo_toplevel())
         self.lift()
         self.focus_force()
         self.grab_set()
@@ -390,7 +402,13 @@ class GraphViewDialog(tk.Toplevel):
     def _on_window_numpad_accept(self, value: float, scale: float) -> None:
         seconds = max(MIN_WINDOW_S, min(MAX_WINDOW_S, int(round(value * scale))))
         self._graph.set_window(seconds)
-        self.destroy()
+        # Deferred, not self.destroy() directly - this runs from inside the
+        # NumpadDialog's own _confirm(), which is a *child* of self (parented
+        # here so it centers over this popup). Destroying self synchronously
+        # would cascade-destroy that child mid-callback, before its own
+        # cleanup runs. after_idle lets the child finish its own destroy()
+        # first, on the next event-loop pass.
+        self.after_idle(self.destroy)
 
     def _pick_y_zero_based(self, enabled: bool) -> None:
         self._graph.set_y_zero_based(enabled)
@@ -407,11 +425,13 @@ class GraphViewDialog(tk.Toplevel):
         )
 
     def _clear_graph(self) -> None:
-        ConfirmDialog(self, "Clear all graph data?", self._do_clear_graph)
+        ConfirmDialog(self, "Clear all graph data?", self._do_clear_graph, confirm_label="Clear")
 
     def _do_clear_graph(self) -> None:
         self._graph.clear()
-        self.destroy()
+        # Deferred - same reasoning as _on_window_numpad_accept: this runs
+        # from inside ConfirmDialog's own _confirm(), a child of self.
+        self.after_idle(self.destroy)
 
     def _export_graph(self) -> None:
         # Parented to the graph (which outlives this popup) rather than
@@ -436,72 +456,12 @@ class GraphViewDialog(tk.Toplevel):
                     writer.writerow([
                         f"{t:.3f}",
                         datetime.fromtimestamp(wall).isoformat(timespec="seconds"),
-                        f"{v:.3f}", f"{a:.3f}", f"{cap:.1f}",
+                        f"{v:.3f}", f"{a:.3f}", f"{cap:.0f}",
                     ])
             InfoDialog(graph, f"Exported to {path}")
         except OSError as exc:
             InfoDialog(graph, f"Export failed: {exc}")
         self.destroy()
-
-
-class ConfirmDialog(tk.Toplevel):
-    """Small modal Yes/Cancel popup, styled like the other borderless touch
-    dialogs in this file - used to confirm a destructive action (clearing
-    the graph) before it happens."""
-
-    def __init__(self, master: tk.Misc, message: str, on_confirm: Callable[[], None]):
-        super().__init__(master, bg=PANEL_BG)
-        self.overrideredirect(True)
-        self._on_confirm = on_confirm
-
-        tk.Label(self, text=message, font=FONT_MED, bg=PANEL_BG, fg=TEXT,
-                 wraplength=260, justify="center").pack(padx=20, pady=(20, 14))
-
-        row = tk.Frame(self, bg=PANEL_BG)
-        row.pack(fill="x", padx=14, pady=(0, 14))
-        big_button(row, "Cancel", self.destroy, bg=BTN_BG, fg=TEXT).pack(side="left", expand=True, fill="x", padx=(0, 4))
-        big_button(row, "Clear", self._confirm, bg=ACCENT_RED, fg="white").pack(side="left", expand=True, fill="x", padx=(4, 0))
-
-        self.transient(master.winfo_toplevel())
-        _center_on_parent(self, master.winfo_toplevel())
-        self.lift()
-        self.focus_force()
-        self.grab_set()
-
-    def _confirm(self) -> None:
-        self._on_confirm()
-        self.destroy()
-
-
-class InfoDialog(tk.Toplevel):
-    """Small modal message popup with a single OK button, styled like the
-    other borderless touch dialogs in this file - used for one-shot result
-    messages (e.g. export succeeded/failed) so they show as their own
-    overlay rather than getting lost inline in the menu that triggered them."""
-
-    def __init__(self, master: tk.Misc, message: str):
-        super().__init__(master, bg=PANEL_BG)
-        self.overrideredirect(True)
-
-        tk.Label(self, text=message, font=FONT_MED, bg=PANEL_BG, fg=TEXT,
-                 wraplength=260, justify="center").pack(padx=20, pady=(20, 14))
-        big_button(self, "OK", self.destroy, bg=BTN_BG, fg=TEXT).pack(fill="x", padx=14, pady=(0, 14))
-
-        self.transient(master.winfo_toplevel())
-        _center_on_parent(self, master.winfo_toplevel())
-        self.lift()
-        self.focus_force()
-        self.grab_set()
-
-
-def _center_on_parent(win: tk.Toplevel, root: tk.Misc) -> None:
-    win.update_idletasks()
-    w, h = win.winfo_reqwidth(), win.winfo_reqheight()
-    rx, ry = root.winfo_rootx(), root.winfo_rooty()
-    rw, rh = root.winfo_width(), root.winfo_height()
-    x = rx + max(0, (rw - w) // 2)
-    y = ry + max(0, (rh - h) // 2)
-    win.geometry(f"{w}x{h}+{x}+{y}")
 
 
 def _format_elapsed(seconds: float) -> str:
@@ -527,15 +487,17 @@ def _nice_step(raw_step: float) -> float:
         k += 1
 
 
-def _axis_ticks(lo: float, hi: float, zero_based: bool) -> tuple[list[float], int]:
-    """Tick values (in V or A) for one axis, plus how many decimal places to
-    display them with. Narrow spans (below FINE_STEP_THRESHOLD_BASE) use a
-    fixed one-decimal step rather than collapsing to just 2-3 whole-volt/amp
-    gridlines; wider spans use a standard 1/2/5 x10**n "nice step", always a
-    whole number."""
+def _axis_ticks(lo: float, hi: float, zero_based: bool, whole_only: bool = False) -> tuple[list[float], int]:
+    """Tick values for one axis, plus how many decimal places to display
+    them with. Narrow spans (below FINE_STEP_THRESHOLD_BASE) use a fixed
+    one-decimal step rather than collapsing to just 2-3 whole gridlines;
+    wider spans use a standard 1/2/5 x10**n "nice step", always a whole
+    number. whole_only skips the one-decimal case entirely - for capacity
+    (mAh), which the device already reports as a whole number, so unlike
+    V/A there's no real sub-unit precision a decimal step would add."""
     eff_lo = min(0.0, lo) if zero_based else lo
     span = max(hi - eff_lo, 1e-9)
-    if span < FINE_STEP_THRESHOLD_BASE:
+    if span < FINE_STEP_THRESHOLD_BASE and not whole_only:
         step = FINE_STEP
     else:
         step = _nice_step(span / NICE_STEP_TARGET_ROWS)

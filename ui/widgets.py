@@ -312,6 +312,68 @@ class NumpadDialog(tk.Toplevel):
         self.destroy()
 
 
+class ConfirmDialog(tk.Toplevel):
+    """Small modal Yes/Cancel popup, styled like the other borderless touch
+    dialogs in this app (see NumpadDialog above for the same show/center/
+    grab_set ordering note) - used to confirm a destructive/consequential
+    action before it happens."""
+
+    def __init__(self, master: tk.Misc, message: str, on_confirm: Callable[[], None],
+                 confirm_label: str = "Confirm"):
+        super().__init__(master, bg=PANEL_BG)
+        self.overrideredirect(True)
+        self._on_confirm = on_confirm
+
+        tk.Label(self, text=message, font=FONT_MED, bg=PANEL_BG, fg=TEXT,
+                 wraplength=260, justify="center").pack(padx=20, pady=(20, 14))
+
+        row = tk.Frame(self, bg=PANEL_BG)
+        row.pack(fill="x", padx=14, pady=(0, 14))
+        big_button(row, "Cancel", self.destroy, bg=BTN_BG, fg=TEXT).pack(side="left", expand=True, fill="x", padx=(0, 4))
+        big_button(row, confirm_label, self._confirm, bg=ACCENT_RED, fg="white").pack(side="left", expand=True, fill="x", padx=(4, 0))
+
+        self.transient(master.winfo_toplevel())
+        center_on_parent(self, master.winfo_toplevel())
+        self.lift()
+        self.focus_force()
+        self.grab_set()
+
+    def _confirm(self) -> None:
+        self._on_confirm()
+        self.destroy()
+
+
+class InfoDialog(tk.Toplevel):
+    """Small modal message popup with a single OK button, styled like the
+    other borderless touch dialogs in this app - used for one-shot result
+    messages so they show as their own overlay rather than getting lost
+    inline in whatever triggered them."""
+
+    def __init__(self, master: tk.Misc, message: str):
+        super().__init__(master, bg=PANEL_BG)
+        self.overrideredirect(True)
+
+        tk.Label(self, text=message, font=FONT_MED, bg=PANEL_BG, fg=TEXT,
+                 wraplength=260, justify="center").pack(padx=20, pady=(20, 14))
+        big_button(self, "OK", self.destroy, bg=BTN_BG, fg=TEXT).pack(fill="x", padx=14, pady=(0, 14))
+
+        self.transient(master.winfo_toplevel())
+        center_on_parent(self, master.winfo_toplevel())
+        self.lift()
+        self.focus_force()
+        self.grab_set()
+
+
+def center_on_parent(win: tk.Toplevel, root: tk.Misc) -> None:
+    win.update_idletasks()
+    w, h = win.winfo_reqwidth(), win.winfo_reqheight()
+    rx, ry = root.winfo_rootx(), root.winfo_rooty()
+    rw, rh = root.winfo_width(), root.winfo_height()
+    x = rx + max(0, (rw - w) // 2)
+    y = ry + max(0, (rh - h) // 2)
+    win.geometry(f"{w}x{h}+{x}+{y}")
+
+
 class TouchNumberField(tk.Frame):
     """Label + tap-to-edit value (opens NumpadDialog). Stores/reports its
     value in a fixed raw base unit (e.g. mA, mV, minutes); displays it in a
