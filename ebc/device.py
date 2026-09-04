@@ -4,6 +4,7 @@ and the unverified-parity caveat.
 from __future__ import annotations
 
 import queue
+import sys
 import threading
 import time
 from typing import Optional
@@ -34,11 +35,23 @@ class EbcDevice:
 
     @staticmethod
     def list_ports() -> list[str]:
-        return [
-            p.device
-            for p in serial.tools.list_ports.comports()
-            if not p.device.startswith("/dev/ttyS")
-        ]
+        """Serial ports likely to be a real USB-serial adapter, filtered
+        per-OS since "junk" entries look different on each platform -
+        Windows COM ports don't have this problem and need no filtering."""
+        ports = [p.device for p in serial.tools.list_ports.comports()]
+        if sys.platform == "darwin":
+            # Each USB-serial adapter shows up twice on macOS: a
+            # /dev/cu.* (call-up, for initiating outgoing connections -
+            # what this app wants) and a /dev/tty.* (call-in) device for
+            # the same physical port. Keep only cu.* so one adapter isn't
+            # shown as two identical-looking buttons.
+            ports = [p for p in ports if not p.startswith("/dev/tty.")]
+        elif sys.platform.startswith("linux"):
+            # Built-in motherboard serial headers (ttyS0-ttyS31 etc.), not
+            # real USB-serial adapters - a real EBC-A20 shows up as
+            # ttyUSB*/ttyACM* instead.
+            ports = [p for p in ports if not p.startswith("/dev/ttyS")]
+        return ports
 
     def connect(self, port: str) -> None:
         if self.connected:
