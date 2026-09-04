@@ -51,14 +51,15 @@ parts:
     plugin: dump
     source: .
     stage-packages:
-      # python3 explicit, not left to transitive resolution - across two
-      # failed builds (with and without the gnome extension) the staged-
-      # package list never actually included the interpreter itself, only
-      # python3-tk/python3-serial's non-interpreter deps, so `usr/bin/
-      # python3` - this app's own `command:` target - was never guaranteed
-      # to exist in the final prime, which is exactly what "snap is
-      # unusable due to missing files" was complaining about.
+      # python3 alone still wasn't enough - it's Debian's thin symlink/
+      # meta package pointing at python3.10, and across 3 failed builds
+      # the real python3.10 interpreter package was never actually in the
+      # staged list. That leaves usr/bin/python3 (this app's own command:
+      # target) a dangling symlink, which is exactly what "snap is
+      # unusable due to missing files" was complaining about each time.
+      # Staging the concrete versioned package removes the ambiguity.
       - python3
+      - python3.10
       - python3-tk
       - python3-serial
       - fontconfig-config
