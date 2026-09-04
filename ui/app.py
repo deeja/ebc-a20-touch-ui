@@ -148,6 +148,7 @@ class ConnectScreen(tk.Frame):
             return
         self.app.set_device(device)
         self.status_label.config(text="")
+        self.app.main_screen.reset_session()
         self.app.show_main()
 
     def connect_simulator(self) -> None:
@@ -155,6 +156,7 @@ class ConnectScreen(tk.Frame):
         device.connect("SIM")
         self.app.set_device(device)
         self.status_label.config(text="")
+        self.app.main_screen.reset_session()
         self.app.show_main()
 
 
@@ -237,18 +239,25 @@ class MainScreen(tk.Frame):
     def _set_warning_text(self, text: str) -> None:
         self._set_label_text(self.warning_label, text)
 
-    def on_shown(self) -> None:
-        self._cancel_loops()
+    def reset_session(self) -> None:
+        """Wipe accumulated graph/timing state for a brand new connection.
+        NOT called from on_shown() - screen switches (Settings, Raw Values)
+        must not lose an in-progress test's data."""
+        self.graph.clear()
         self._t0 = None
         self._last_sample = None
-        self.graph.clear()
+
+    def on_shown(self) -> None:
+        self._cancel_loops()
         cfg = self.app.test_config
         if self.app.is_configured:
             self.battery_label.config(text=presets.describe(cfg.preset_key, cfg.cell_count))
             self.mode_label.config(text=cfg.summary())
+            self.graph.set_test_info(cfg.mode, cfg.preset_key)
         else:
             self.battery_label.config(text="Not configured")
             self.mode_label.config(text="Tap Configure to select a battery and test mode")
+            self.graph.set_test_info("", "")
         self._set_sequencer_text("")
         self._set_warning_text("")
         self.tile_status.set("--")
@@ -319,9 +328,9 @@ class MainScreen(tk.Frame):
         self._last_sample = sample
         if self._t0 is None:
             self._t0 = sample.timestamp
-        self.graph.add_sample(sample.timestamp - self._t0, sample.voltage_v, sample.current_a)
+        self.graph.add_sample(sample.timestamp - self._t0, sample.voltage_v, sample.current_a, sample.capacity_mah)
         self.tile_voltage.set(f"{sample.voltage_v:.2f} V")
-        self.tile_current.set(f"{sample.current_a:.3f} A")
+        self.tile_current.set(f"{sample.current_a:.1f} A")
         self.tile_capacity.set(f"{sample.capacity_mah} mAh")
         self.tile_status.set(sample.status_text)
         if self.sequencer is not None:

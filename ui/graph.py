@@ -12,12 +12,17 @@ and crosshair for the nearest sample - drag vs. tap is disambiguated by
 a small movement threshold so a plain tap still opens the popup."""
 from __future__ import annotations
 
+import csv
 import math
+import time
 import tkinter as tk
 from collections import deque
+from datetime import datetime
+from typing import Callable
 
 from . import prefs as prefsmod
 from .widgets import (
+    ACCENT_RED,
     BORDER,
     BTN_ACTIVE_BG,
     BTN_BG,
@@ -34,17 +39,23 @@ from .widgets import (
     big_button,
 )
 
-VOLTAGE_COLOR = "#0288d1"
-CURRENT_COLOR = "#ef6c00"
-VOLTAGE_GRID_COLOR = "#d6ecfa"
-CURRENT_GRID_COLOR = "#fbe0c4"
+VOLTAGE_COLOR = "#c62828"
+CURRENT_COLOR = "#0288d1"
+CAPACITY_COLOR = "#2e7d32"
+VOLTAGE_GRID_COLOR = "#fadbdb"
+CURRENT_GRID_COLOR = "#d6ecfa"
+CAPACITY_GRID_COLOR = "#dcedc8"
 GRID_COLOR = "#dddddd"
 AXIS_TEXT_COLOR = "#666666"
 HINT_TEXT_COLOR = "#aaaaaa"
 CROSSHAIR_COLOR = "#999999"
 BG_COLOR = "#ffffff"
 
-MARGIN_L = 68
+# Voltage and Current both live on the left, each its own auto-ranging scale,
+# as two stacked label columns (Voltage innermost, Current outer) - so the
+# left margin needs room for two of what used to be a single column.
+LEFT_COL_W = 34
+MARGIN_L = LEFT_COL_W * 2
 MARGIN_R = 68
 MARGIN_T = 16
 MARGIN_B = 34
@@ -75,11 +86,19 @@ class DualLineGraph(tk.Canvas):
         super().__init__(master, **kw)
         self.default_window_seconds = history_seconds
         self.window_seconds = history_seconds
-        self.fit_all = False
+        self.fit_all = True
         self.y_zero_based = False
         self._load_view_settings()
 
-        self._points: deque[tuple[float, float, float]] = deque(maxlen=2000)
+        # Current test mode/battery preset (e.g. "DSC_CC", "liion") - set by
+        # the caller (app.py, which knows about TestConfig) via
+        # set_test_info(), used only to label Export's filename.
+        self.test_label = ""
+
+        # (elapsed_s, voltage_v, current_a, capacity_mah, wall_clock_time.time())
+        # - the wall-clock time is only for Export's start/end filename, not
+        # for plotting (that uses elapsed_s against the shared t0 origin).
+        self._points: deque[tuple[float, float, float, float, float]] = deque(maxlen=2000)
 
         self._press_xy: tuple[int, int] | None = None
         self._dragging = False
@@ -89,21 +108,19 @@ class DualLineGraph(tk.Canvas):
         # Geometry/domain from the most recent redraw() - lets a drag move
         # the crosshair/tooltip cheaply (no full recompute) between the
         # throttled full redraws the caller schedules.
-        self._last_pts: list[tuple[float, float, float]] = []
+        self._last_pts: list[tuple[float, float, float, float, float]] = []
         self._last_t_min = 0.0
         self._last_t_max = 0.0
         self._last_plot_w: int | None = None
         self._last_plot_h = 0
-        self._last_v_lo = self._last_v_hi = 0.0
-        self._last_a_lo = self._last_a_hi = 0.0
 
         self.bind("<Configure>", lambda e: self.redraw())
         self.bind("<ButtonPress-1>", self._on_press)
         self.bind("<B1-Motion>", self._on_drag)
         self.bind("<ButtonRelease-1>", self._on_release)
 
-    def add_sample(self, t: float, voltage_v: float, current_a: float) -> None:
-        self._points.append((t, voltage_v, current_a))
+    def add_sample(self, t: float, voltage_v: float, current_a: float, capacity_mah: float) -> None:
+        self._points.append((t, voltage_v, current_a, capacity_mah, time.time()))
 
     def clear(self) -> None:
         self._points.clear()
@@ -112,7 +129,7 @@ class DualLineGraph(tk.Canvas):
     # -- view mode (scrolling window vs. fit-all) --------------------------
     def _load_view_settings(self) -> None:
         saved = prefsmod.load_prefs().get(PREFS_KEY, {})
-        self.fit_all = bool(saved.get("fit_all", False))
+        self.fit_all = bool(saved.get("fit_all", True))
         self.window_seconds = int(saved.get("window_seconds", self.default_window_seconds))
         self.y_zero_based = bool(saved.get("y_zero_based", False))
 
@@ -141,6 +158,9 @@ class DualLineGraph(tk.Canvas):
         self._save_view_settings()
         self.redraw()
 
+    def set_test_info(self, mode: str, preset_key: str) -> None:
+        self.test_label = f"{mode}_{preset_key}" if mode else ""
+
     # -- tap (open view options) vs. drag (tooltip) -------------------------
     def _on_press(self, event) -> None:
         self._press_xy = (event.x, event.y)
@@ -157,6 +177,12 @@ class DualLineGraph(tk.Canvas):
             self._update_overlay(event.x)
 
     def _on_release(self, event) -> None:
+        if self._press_xy is None:
+            # A release with no matching press on this canvas - e.g. the tail
+            # end of a click on the view-options popup that closed mid-click
+            # (its grab let go, so this release leaked through to the chart).
+            # Not a real tap, so don't reopen the popup.
+            return
         was_dragging = self._dragging
         self._press_xy = None
         self._dragging = False
@@ -189,6 +215,7 @@ class DualLineGraph(tk.Canvas):
 
         v_min, v_max = min(p[1] for p in pts), max(p[1] for p in pts)
         a_min, a_max = min(p[2] for p in pts), max(p[2] for p in pts)
+        cap_min, cap_max = min(p[3] for p in pts), max(p[3] for p in pts)
 
         # decimate to roughly one sample per pixel column for the polyline -
         # min/max/ticks above are computed from the full-resolution pts so a
@@ -200,8 +227,10 @@ class DualLineGraph(tk.Canvas):
 
         v_ticks, v_decimals = _axis_ticks(v_min, v_max, self.y_zero_based)
         a_ticks, a_decimals = _axis_ticks(a_min, a_max, self.y_zero_based)
+        cap_ticks, cap_decimals = _axis_ticks(cap_min, cap_max, self.y_zero_based)
         v_lo, v_hi = v_ticks[0], v_ticks[-1]
         a_lo, a_hi = a_ticks[0], a_ticks[-1]
+        cap_lo, cap_hi = cap_ticks[0], cap_ticks[-1]
 
         def x_of(t: float) -> float:
             span = max(1e-6, t_max - t_min)
@@ -212,44 +241,44 @@ class DualLineGraph(tk.Canvas):
             return MARGIN_T + plot_h - (val - lo) / span * plot_h
 
         self._draw_axis_grid(plot_w, plot_h, v_ticks, v_decimals, v_lo, v_hi,
-                              VOLTAGE_GRID_COLOR, VOLTAGE_COLOR, "V", "left")
+                              VOLTAGE_GRID_COLOR, VOLTAGE_COLOR, "V", MARGIN_L - 6, "e")
         self._draw_axis_grid(plot_w, plot_h, a_ticks, a_decimals, a_lo, a_hi,
-                              CURRENT_GRID_COLOR, CURRENT_COLOR, "A", "right")
+                              CURRENT_GRID_COLOR, CURRENT_COLOR, "A", MARGIN_L - 6 - LEFT_COL_W, "e")
+        self._draw_axis_grid(plot_w, plot_h, cap_ticks, cap_decimals, cap_lo, cap_hi,
+                              CAPACITY_GRID_COLOR, CAPACITY_COLOR, "mAh", MARGIN_L + plot_w + 6, "w")
         self._draw_time_grid(plot_w, plot_h, t_min, t_max)
 
         v_line = []
         a_line = []
-        for t, v, a in plot_pts:
+        cap_line = []
+        for t, v, a, cap, _wall in plot_pts:
             x = x_of(t)
             v_line += [x, y_of(v, v_lo, v_hi)]
             a_line += [x, y_of(a, a_lo, a_hi)]
+            cap_line += [x, y_of(cap, cap_lo, cap_hi)]
 
-        self.create_line(*v_line, fill=VOLTAGE_COLOR, width=2, smooth=True)
-        self.create_line(*a_line, fill=CURRENT_COLOR, width=2, smooth=True)
+        self.create_line(*v_line, fill=VOLTAGE_COLOR, width=4, smooth=True)
+        self.create_line(*a_line, fill=CURRENT_COLOR, width=4, smooth=True)
+        self.create_line(*cap_line, fill=CAPACITY_COLOR, width=4, smooth=True)
 
-        self.create_text(MARGIN_L, 8, text="Voltage (V)", fill=VOLTAGE_COLOR, anchor="w", font=("TkDefaultFont", 9, "bold"))
-        self.create_text(w - MARGIN_R, 8, text="Current (A)", fill=CURRENT_COLOR, anchor="e", font=("TkDefaultFont", 9, "bold"))
         self.create_text(w / 2, 8, text="tap chart for view options, drag for values", fill=HINT_TEXT_COLOR,
                           anchor="n", font=("TkDefaultFont", 8))
 
         self._last_pts = pts
         self._last_t_min, self._last_t_max = t_min, t_max
         self._last_plot_w, self._last_plot_h = plot_w, plot_h
-        self._last_v_lo, self._last_v_hi = v_lo, v_hi
-        self._last_a_lo, self._last_a_hi = a_lo, a_hi
 
         if self._dragging and self._drag_x is not None:
             self._update_overlay(self._drag_x)
 
-    def _draw_axis_grid(self, plot_w, plot_h, ticks, decimals, lo, hi, line_color, text_color, unit_label, side) -> None:
+    def _draw_axis_grid(self, plot_w, plot_h, ticks, decimals, lo, hi, line_color, text_color, unit_label,
+                         label_x, anchor) -> None:
         span = max(1e-9, hi - lo)
         for val in ticks:
             y = MARGIN_T + plot_h - (val - lo) / span * plot_h
             self.create_line(MARGIN_L, y, MARGIN_L + plot_w, y, fill=line_color)
             label = f"{val:.{decimals}f}{unit_label}"
-            x = (MARGIN_L - 6) if side == "left" else (MARGIN_L + plot_w + 6)
-            anchor = "e" if side == "left" else "w"
-            self.create_text(x, y, text=label, fill=text_color, anchor=anchor, font=("TkDefaultFont", 8))
+            self.create_text(label_x, y, text=label, fill=text_color, anchor=anchor, font=("TkDefaultFont", 8))
 
     def _draw_time_grid(self, plot_w, plot_h, t_min, t_max) -> None:
         cols = 4
@@ -279,8 +308,9 @@ class DualLineGraph(tk.Canvas):
         self._overlay_items.append(crosshair)
 
         v_text = f"{sample[1]:.2f}V"
-        a_text = f"{sample[2]:.2f}A"
-        text = f"{_format_elapsed(sample[0])}\n{v_text}\n{a_text}"
+        a_text = f"{sample[2]:.1f}A"
+        cap_text = f"{sample[3]:.0f}mAh"
+        text = f"{_format_elapsed(sample[0])}\n{v_text}\n{a_text}\n{cap_text}"
 
         right_side = x > MARGIN_L + self._last_plot_w / 2
         anchor = "ne" if right_side else "nw"
@@ -308,13 +338,11 @@ class GraphViewDialog(tk.Toplevel):
 
     def __init__(self, master: tk.Misc, graph: DualLineGraph):
         super().__init__(master, bg=PANEL_BG)
-        self.title("Chart View")
+        self.overrideredirect(True)
         self._graph = graph
 
-        tk.Label(self, text="Chart View", font=FONT_MED, bg=PANEL_BG, fg=TEXT_MUTED).pack(pady=(14, 6))
-
         top_row = tk.Frame(self, bg=PANEL_BG)
-        top_row.pack(fill="x", padx=14)
+        top_row.pack(fill="x", padx=14, pady=(14, 0))
 
         window_box = tk.Frame(top_row, bg=PANEL_BG)
         window_box.pack(side="left", fill="both", expand=True)
@@ -336,22 +364,25 @@ class GraphViewDialog(tk.Toplevel):
                                          on_change=self._pick_y_zero_based)
         self.zero_toggle.pack(fill="x", padx=14, pady=(10, 10))
 
-        big_button(self, "Close", self.destroy, bg=BTN_BG, fg=TEXT).pack(fill="x", padx=14, pady=(4, 14))
+        big_button(self, "Export", self._export_graph, bg=BTN_BG, fg=TEXT).pack(fill="x", padx=14, pady=(0, 10))
+
+        big_button(self, "Clear Graph", self._clear_graph, bg=ACCENT_RED, fg="white").pack(fill="x", padx=14, pady=(0, 14))
 
         self.transient(master.winfo_toplevel())
-        self._center_on(master.winfo_toplevel())
+        _center_on_parent(self, master.winfo_toplevel())
         self.lift()
         self.focus_force()
         self.grab_set()
+        # While the grab is active, a click anywhere outside this window gets
+        # redirected here rather than reaching whatever's actually under it
+        # (e.g. the chart) - catch that and treat it as "tap outside to close".
+        self.bind("<Button-1>", self._on_click_outside)
 
-    def _center_on(self, root: tk.Misc) -> None:
-        self.update_idletasks()
-        w, h = self.winfo_reqwidth(), self.winfo_reqheight()
-        rx, ry = root.winfo_rootx(), root.winfo_rooty()
-        rw, rh = root.winfo_width(), root.winfo_height()
-        x = rx + max(0, (rw - w) // 2)
-        y = ry + max(0, (rh - h) // 2)
-        self.geometry(f"{w}x{h}+{x}+{y}")
+    def _on_click_outside(self, event) -> None:
+        x, y = self.winfo_rootx(), self.winfo_rooty()
+        w, h = self.winfo_width(), self.winfo_height()
+        if not (x <= event.x_root <= x + w and y <= event.y_root <= y + h):
+            self.destroy()
 
     def _open_window_numpad(self) -> None:
         NumpadDialog(self, "SCROLL WINDOW", WINDOW_UNITS, self._on_window_numpad_accept)
@@ -374,6 +405,103 @@ class GraphViewDialog(tk.Toplevel):
             bg=SELECTED_BG if window_selected else PANEL_BG,
             highlightbackground=SELECTED_BORDER if window_selected else BORDER,
         )
+
+    def _clear_graph(self) -> None:
+        ConfirmDialog(self, "Clear all graph data?", self._do_clear_graph)
+
+    def _do_clear_graph(self) -> None:
+        self._graph.clear()
+        self.destroy()
+
+    def _export_graph(self) -> None:
+        # Parented to the graph (which outlives this popup) rather than
+        # self, since the menu closes right after - a dialog parented to a
+        # destroyed Toplevel would be destroyed along with it.
+        graph = self._graph
+        points = list(graph._points)
+        if not points:
+            InfoDialog(graph, "Nothing to export yet")
+            self.destroy()
+            return
+        start_iso = datetime.fromtimestamp(points[0][4]).strftime("%Y-%m-%dT%H-%M-%S")
+        end_iso = datetime.fromtimestamp(points[-1][4]).strftime("%Y-%m-%dT%H-%M-%S")
+        label_part = f"{graph.test_label}_" if graph.test_label else ""
+        path = prefsmod.APP_DATA_DIR / f"graph_export_{label_part}{start_iso}_to_{end_iso}.csv"
+        try:
+            prefsmod.APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+            with path.open("w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["elapsed_s", "timestamp", "voltage_v", "current_a", "capacity_mah"])
+                for t, v, a, cap, wall in points:
+                    writer.writerow([
+                        f"{t:.3f}",
+                        datetime.fromtimestamp(wall).isoformat(timespec="seconds"),
+                        f"{v:.3f}", f"{a:.3f}", f"{cap:.1f}",
+                    ])
+            InfoDialog(graph, f"Exported to {path}")
+        except OSError as exc:
+            InfoDialog(graph, f"Export failed: {exc}")
+        self.destroy()
+
+
+class ConfirmDialog(tk.Toplevel):
+    """Small modal Yes/Cancel popup, styled like the other borderless touch
+    dialogs in this file - used to confirm a destructive action (clearing
+    the graph) before it happens."""
+
+    def __init__(self, master: tk.Misc, message: str, on_confirm: Callable[[], None]):
+        super().__init__(master, bg=PANEL_BG)
+        self.overrideredirect(True)
+        self._on_confirm = on_confirm
+
+        tk.Label(self, text=message, font=FONT_MED, bg=PANEL_BG, fg=TEXT,
+                 wraplength=260, justify="center").pack(padx=20, pady=(20, 14))
+
+        row = tk.Frame(self, bg=PANEL_BG)
+        row.pack(fill="x", padx=14, pady=(0, 14))
+        big_button(row, "Cancel", self.destroy, bg=BTN_BG, fg=TEXT).pack(side="left", expand=True, fill="x", padx=(0, 4))
+        big_button(row, "Clear", self._confirm, bg=ACCENT_RED, fg="white").pack(side="left", expand=True, fill="x", padx=(4, 0))
+
+        self.transient(master.winfo_toplevel())
+        _center_on_parent(self, master.winfo_toplevel())
+        self.lift()
+        self.focus_force()
+        self.grab_set()
+
+    def _confirm(self) -> None:
+        self._on_confirm()
+        self.destroy()
+
+
+class InfoDialog(tk.Toplevel):
+    """Small modal message popup with a single OK button, styled like the
+    other borderless touch dialogs in this file - used for one-shot result
+    messages (e.g. export succeeded/failed) so they show as their own
+    overlay rather than getting lost inline in the menu that triggered them."""
+
+    def __init__(self, master: tk.Misc, message: str):
+        super().__init__(master, bg=PANEL_BG)
+        self.overrideredirect(True)
+
+        tk.Label(self, text=message, font=FONT_MED, bg=PANEL_BG, fg=TEXT,
+                 wraplength=260, justify="center").pack(padx=20, pady=(20, 14))
+        big_button(self, "OK", self.destroy, bg=BTN_BG, fg=TEXT).pack(fill="x", padx=14, pady=(0, 14))
+
+        self.transient(master.winfo_toplevel())
+        _center_on_parent(self, master.winfo_toplevel())
+        self.lift()
+        self.focus_force()
+        self.grab_set()
+
+
+def _center_on_parent(win: tk.Toplevel, root: tk.Misc) -> None:
+    win.update_idletasks()
+    w, h = win.winfo_reqwidth(), win.winfo_reqheight()
+    rx, ry = root.winfo_rootx(), root.winfo_rooty()
+    rw, rh = root.winfo_width(), root.winfo_height()
+    x = rx + max(0, (rw - w) // 2)
+    y = ry + max(0, (rh - h) // 2)
+    win.geometry(f"{w}x{h}+{x}+{y}")
 
 
 def _format_elapsed(seconds: float) -> str:

@@ -7,7 +7,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-PREFS_PATH = Path.home() / ".battery_tester_ui" / "prefs.json"
+APP_DATA_DIR = Path.home() / ".battery_tester_ui"
+PREFS_PATH = APP_DATA_DIR / "prefs.json"
 
 
 def load_prefs() -> dict:

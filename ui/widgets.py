@@ -230,7 +230,12 @@ class NumpadDialog(tk.Toplevel):
     def __init__(self, master: tk.Misc, title: str, unit_options: list[tuple[str, float]],
                  on_accept: Callable[[float, float], None]):
         super().__init__(master, bg=PANEL_BG)
-        self.title(title)
+        # Borderless like the other touch popups (GraphViewDialog, ConfirmDialog
+        # in ui/graph.py) - a decorated Toplevel opened as a transient child of
+        # one of those override-redirect windows stacks/focuses inconsistently
+        # across window managers, which showed up as an overlay glitch between
+        # the chart menu and this numpad.
+        self.overrideredirect(True)
         self._on_accept = on_accept
         self._text = ""
 

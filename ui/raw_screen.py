@@ -11,10 +11,10 @@ from __future__ import annotations
 import csv
 import tkinter as tk
 from datetime import datetime
-from pathlib import Path
 
 from ebc.protocol import RawFrame
 
+from . import prefs as prefsmod
 from .widgets import (
     ACCENT_RED,
     BG,
@@ -28,7 +28,7 @@ from .widgets import (
     big_button,
 )
 
-EXPORT_DIR = Path.home() / ".battery_tester_ui"
+EXPORT_DIR = prefsmod.APP_DATA_DIR
 
 ROW_H = 22
 HEADER_H = 26
