@@ -2,3 +2,9 @@ __pycache__/
 
 # deploy/build-package.sh output
 dist/
+
+# deploy/build-flatpak-local.sh output
+/flatpak/builddir/
+/flatpak/.flatpak-builder/
+/flatpak/repo/
+*.flatpak

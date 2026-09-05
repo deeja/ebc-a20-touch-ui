@@ -170,21 +170,22 @@ machine from the [Releases page](https://github.com/deeja/batterytesterui/releas
 
 ### Linux, including Raspberry Pi
 
-Download `battery-tester-kiosk_<version>_<arch>.snap` (`arch` one of
-`amd64`/`arm64`/`armhf`):
+Download `battery-tester-kiosk-<arch>.flatpak` (`arch` one of `x86_64`/
+`aarch64` - a 64-bit Pi, e.g. Zero 2 W or later on a 64-bit OS; the original
+32-bit Pi Zero isn't covered, since the Flatpak freedesktop runtime doesn't
+build for armhf):
 
 ```bash
-sudo snap install --dangerous ./battery-tester-kiosk_<version>_<arch>.snap
-snap run battery-tester-kiosk
+flatpak install --user ./battery-tester-kiosk-<arch>.flatpak
+flatpak run io.github.deeja.BatteryTesterKiosk
 ```
 
 (or find it in your app menu). Fullscreen and no-cursor kiosk mode are
 baked in - nothing else to set.
 
-If the app can't see the port or connecting fails with a
-permissions error when running from source (not the Snap, which already
-has serial-port access via confinement), your user likely needs the
-`dialout` group:
+If the app can't see the port or connecting fails with a permissions error,
+your user likely needs the `dialout` group (Flatpak's sandboxing doesn't
+change who's allowed to open the device node on the host):
 
 ```bash
 sudo usermod -aG dialout $USER
@@ -207,6 +208,8 @@ battery-tester-kiosk.exe --kiosk
 Download and unzip `battery-tester-kiosk-macos.zip`, right-click → Open
 the first time - it's an unsigned build, so Gatekeeper will otherwise
 refuse to launch it - then:
+
+![Allow the app via the privacy and security](docs/screenshots/macos_openanyway.png)
 
 ```
 open battery-tester-kiosk.app --args --kiosk
@@ -232,5 +235,6 @@ Other dependencies, beyond what `pip install` covers:
   Windows `.exe`/macOS `.app` yourself instead of grabbing one from
   Releases; see the `build-windows-exe`/`build-macos-app` jobs in
   `.github/workflows/release.yml` for the exact build command.
-- **snapcraft** - only needed to build the Linux `.snap` yourself instead
-  of grabbing one from Releases; see `snap/snapcraft.yaml`.
+- **flatpak** and **flatpak-builder** - only needed to build the Linux
+  `.flatpak` yourself instead of grabbing one from Releases; see
+  `deploy/build-flatpak-local.sh` and `flatpak/io.github.deeja.BatteryTesterKiosk.yml`.

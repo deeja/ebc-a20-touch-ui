@@ -29,11 +29,11 @@
             "problemMatcher": []
         },
         {
-            "label": "Test Local Install (Docker)",
+            "label": "Build Flatpak Locally",
             "type": "shell",
             "command": "bash",
-            "args": ["deploy/test-local-install.sh"],
-            "group": "test",
+            "args": ["deploy/build-flatpak-local.sh"],
+            "group": "build",
             "presentation": {
                 "reveal": "always",
                 "panel": "dedicated"

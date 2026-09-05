@@ -1,0 +1,96 @@
+app-id: io.github.deeja.BatteryTesterKiosk
+runtime: org.freedesktop.Platform
+runtime-version: "25.08"
+sdk: org.freedesktop.Sdk
+command: battery-tester-kiosk
+
+# fallback-x11 + wayland: Tk has no native Wayland backend, but this lets a
+# Wayland session serve it over XWayland transparently while still working
+# on a plain X11 kiosk session (the app's actual target - see README.md).
+# device=all: pyserial needs the EBC-A20's /dev/ttyUSB*/ttyACM* node -
+# there's no finer-grained portal for arbitrary USB-serial devices.
+# Nothing else (no --filesystem grant) is needed: prefs/CSV export
+# (ui/prefs.py, ui/graph.py) write under the user's home, which Flatpak
+# already redirects to this app's own ~/.var/app/<id> directory.
+finish-args:
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --share=ipc
+  - --device=all
+
+modules:
+  # Tcl/Tk aren't part of the freedesktop runtime, so they're built from
+  # source here, then tkinter itself is added as a standalone extension
+  # module below rather than recompiling all of Python against them - see
+  # that module's comment.
+  - name: tcl9.0
+    buildsystem: autotools
+    subdir: unix
+    config-opts:
+      - --disable-zipfs
+    sources:
+      - type: archive
+        url: https://prdownloads.sourceforge.net/tcl/tcl9.0.2-src.tar.gz
+        sha256: e074c6a8d9ba2cddf914ba97b6677a552d7a52a3ca102924389a05ccb249b520
+    post-install:
+      - chmod +w /app/lib/libtcl9.0.so
+
+  - name: tk9.0
+    buildsystem: autotools
+    subdir: unix
+    config-opts:
+      - --disable-zipfs
+    sources:
+      - type: archive
+        url: https://prdownloads.sourceforge.net/tcl/tk9.0.2-src.tar.gz
+        sha256: 76fb852b2f167592fe8b41aa6549ce4e486dbf3b259a269646600e3894517c76
+    post-install:
+      - chmod +w /app/lib/libtcl9tk9.0.so
+
+  # https://github.com/iwalton3/tkinter-standalone - packages CPython
+  # 3.13's own Lib/tkinter + Modules/_tkinter.c as an installable extension
+  # module built against the tcl9.0/tk9.0 above, without needing to
+  # recompile the freedesktop SDK's own Python (which is what would
+  # otherwise be required to get a working _tkinter). Pinned to the commit
+  # that targets the freedesktop 25.08 runtime's Python 3.13.
+  - name: tkinter
+    buildsystem: simple
+    build-commands:
+      - pip3 install --prefix=${FLATPAK_DEST} --no-build-isolation .
+    sources:
+      - type: git
+        url: https://github.com/iwalton3/tkinter-standalone
+        commit: 8e78e38ef0cceb44a3a0062e1c314a4ff3f981db
+
+  - name: pyserial
+    buildsystem: simple
+    build-commands:
+      - pip3 install --prefix=${FLATPAK_DEST} --no-build-isolation .
+    sources:
+      - type: archive
+        url: https://files.pythonhosted.org/packages/1e/7d/ae3f0a63f41e4d2f6cb66a5b57197850f919f59e558159a4dd3a818f5082/pyserial-3.5.tar.gz
+        sha256: 3c77e014170dfffbd816e6ffc205e9842efb10be9f58ec16d3e8675b4925cddb
+
+  - name: battery-tester-kiosk
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 main.py /app/share/battery-tester-kiosk/main.py
+      - cp -r ebc /app/share/battery-tester-kiosk/ebc
+      - cp -r ui /app/share/battery-tester-kiosk/ui
+      - cp -r assets /app/share/battery-tester-kiosk/assets
+      - install -Dm755 flatpak/battery-tester-kiosk /app/bin/battery-tester-kiosk
+      - install -Dm644 assets/icon.png /app/share/icons/hicolor/1024x1024/apps/io.github.deeja.BatteryTesterKiosk.png
+      - install -Dm644 flatpak/io.github.deeja.BatteryTesterKiosk.desktop /app/share/applications/io.github.deeja.BatteryTesterKiosk.desktop
+      - install -Dm644 flatpak/io.github.deeja.BatteryTesterKiosk.metainfo.xml /app/share/metainfo/io.github.deeja.BatteryTesterKiosk.metainfo.xml
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - .git
+          - __pycache__
+          - dist
+          - docs
+          - deploy
+          - flatpak/.flatpak-builder
+          - flatpak/builddir
+          - flatpak/repo

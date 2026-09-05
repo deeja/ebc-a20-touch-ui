@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Minimal AppStream metadata - only what's needed for a local flatpak-builder
+  build (icon/name/summary in a desktop launcher). NOT validated against, or
+  intended yet for, Flathub submission: it's missing <project_license> (no
+  LICENSE file exists in this repo yet - add one and fill this in first) and
+  a <releases> history.
+-->
+<component type="desktop-application">
+  <id>io.github.deeja.BatteryTesterKiosk</id>
+  <name>EBC-A20 Battery Tester</name>
+  <summary>Touchscreen UI for the ZKETECH EBC-A20 battery capacity tester</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <description>
+    <p>
+      A native touchscreen app for the ZKETECH EBC-A20 battery capacity
+      tester: connect over USB-serial, run constant-current/constant-power
+      discharge and constant-voltage charge tests with a live chart, and use
+      the configurable multi-cycle charge/discharge Repeat mode. Also runs
+      against a built-in simulator with no hardware attached.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.deeja.BatteryTesterKiosk.desktop</launchable>
+  <url type="homepage">https://github.com/deeja/batterytesterui</url>
+  <provides>
+    <binary>battery-tester-kiosk</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+</component>

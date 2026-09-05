@@ -33,43 +33,57 @@ jobs:
         with:
           files: dist/*.tar.gz
 
-  # Linux (including Raspberry Pi) - a Snap for each of amd64/arm64/armhf.
-  # arm64/armhf are QEMU-emulated on the amd64 runner; fail-fast is off so
-  # one flaky arch doesn't take the others down with it (see
-  # snap/snapcraft.yaml's header comment and the project README for why
-  # this needed real iteration to land, mirroring known QEMU-under-CI
-  # instability from this project's history).
-  build-snap:
+  # Linux (including 64-bit Raspberry Pi) - a Flatpak for each of
+  # x86_64/aarch64. aarch64 is QEMU-emulated on the amd64 runner; fail-fast
+  # is off so one flaky arch doesn't take the other down with it. Note:
+  # the freedesktop runtime only ships x86_64/aarch64 builds, so unlike the
+  # old Snap (which also had an armhf build), this doesn't cover the
+  # original 32-bit Raspberry Pi Zero - only Pi Zero 2 W and other 64-bit
+  # Pis running a 64-bit OS.
+  build-flatpak:
     needs: package
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      options: --privileged
     strategy:
       fail-fast: false
       matrix:
-        platform: [amd64, arm64, armhf]
+        arch: [x86_64, aarch64]
     steps:
       - uses: actions/checkout@v4
 
       - name: Write build info
         run: python3 deploy/write_build_info.py "$GITHUB_REF_NAME"
 
-      - uses: docker/setup-qemu-action@v3
+      # Docker + QEMU setup, needed only for the emulated aarch64 build -
+      # see this action's own CI (.github/workflows/flatpak-test.yml
+      # upstream) for why the static Docker binary is fetched manually
+      # rather than assumed present in this container image.
+      - name: Install Docker (for QEMU setup)
+        if: ${{ matrix.arch != 'x86_64' }}
+        run: |
+          curl https://download.docker.com/linux/static/stable/x86_64/docker-26.0.0.tgz --output ./docker.tgz
+          tar xzvf docker.tgz
+          mv docker/* /usr/bin
 
-      - uses: diddlesnaps/snapcraft-multiarch-action@v1
-        id: snapcraft
+      - name: Set up QEMU
+        if: ${{ matrix.arch != 'x86_64' }}
+        uses: docker/setup-qemu-action@v3
         with:
-          architecture: ${{ matrix.platform }}
-          # "snap is unusable due to missing files" from `snap pack` has no
-          # further detail at normal verbosity (confirmed across 3 prior
-          # fix attempts). Trace verbosity alone (v1.7) still didn't surface
-          # which file(s) it means, so add --debug too - on failure it dumps
-          # the traceback/build state before the (non-interactive, so
-          # immediately-EOF'd) debug shell would open.
-          snapcraft-args: --verbosity=trace --debug
+          platforms: arm64
+
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: flatpak/io.github.deeja.BatteryTesterKiosk.yml
+          bundle: battery-tester-kiosk-${{ matrix.arch }}.flatpak
+          arch: ${{ matrix.arch }}
+          upload-artifact: false
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.snapcraft.outputs.snap }}
+          files: battery-tester-kiosk-${{ matrix.arch }}.flatpak
 
   build-windows-exe:
     needs: package
