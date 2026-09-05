@@ -4,17 +4,22 @@ runtime-version: "25.08"
 sdk: org.freedesktop.Sdk
 command: battery-tester-kiosk
 
-# fallback-x11 + wayland: Tk has no native Wayland backend, but this lets a
-# Wayland session serve it over XWayland transparently while still working
-# on a plain X11 kiosk session (the app's actual target - see README.md).
+# socket=x11 (not fallback-x11): Tk has no native Wayland backend, so it
+# always needs a real X11 socket, served over XWayland on a Wayland session.
+# fallback-x11 looks like the right name for that, but it actually means
+# the opposite of what it sounds like: it only grants X11 when a Wayland
+# socket could NOT be provided, so on any working Wayland session it grants
+# nothing and Tk fails with "no display name and no $DISPLAY environment
+# variable". Plain --socket=x11 works on both Wayland (via XWayland) and
+# the app's actual target, a plain X11 kiosk session (see README.md) - no
+# --socket=wayland needed since Tk never speaks it.
 # device=all: pyserial needs the EBC-A20's /dev/ttyUSB*/ttyACM* node -
 # there's no finer-grained portal for arbitrary USB-serial devices.
 # Nothing else (no --filesystem grant) is needed: prefs/CSV export
 # (ui/prefs.py, ui/graph.py) write under the user's home, which Flatpak
 # already redirects to this app's own ~/.var/app/<id> directory.
 finish-args:
-  - --socket=fallback-x11
-  - --socket=wayland
+  - --socket=x11
   - --share=ipc
   - --device=all
 
