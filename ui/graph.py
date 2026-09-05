@@ -378,7 +378,9 @@ class GraphViewDialog(tk.Toplevel):
 
         big_button(self, "Export", self._export_graph, bg=BTN_BG, fg=TEXT).pack(fill="x", padx=14, pady=(0, 10))
 
-        big_button(self, "Clear Graph", self._clear_graph, bg=ACCENT_RED, fg="white").pack(fill="x", padx=14, pady=(0, 14))
+        big_button(self, "Clear Graph", self._clear_graph, bg=ACCENT_RED, fg="white").pack(fill="x", padx=14, pady=(0, 10))
+
+        big_button(self, "Close", self.destroy, bg=BTN_BG, fg=TEXT).pack(fill="x", padx=14, pady=(0, 14))
 
         self.transient(master.winfo_toplevel())
         center_on_parent(self, master.winfo_toplevel())
