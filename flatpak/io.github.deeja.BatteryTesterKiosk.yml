@@ -79,7 +79,11 @@ modules:
       - cp -r ui /app/share/battery-tester-kiosk/ui
       - cp -r assets /app/share/battery-tester-kiosk/assets
       - install -Dm755 flatpak/battery-tester-kiosk /app/bin/battery-tester-kiosk
-      - install -Dm644 assets/icon.png /app/share/icons/hicolor/1024x1024/apps/io.github.deeja.BatteryTesterKiosk.png
+      # flatpak-builder's icon validation caps hicolor app icons at 512x512.
+      # assets/icon.png is kept at 1024x1024 (used as-is by ui/app.py's
+      # window icon and PyInstaller's --add-data) - icon-512.png is a
+      # pre-shrunk copy just for this export.
+      - install -Dm644 assets/icon-512.png /app/share/icons/hicolor/512x512/apps/io.github.deeja.BatteryTesterKiosk.png
       - install -Dm644 flatpak/io.github.deeja.BatteryTesterKiosk.desktop /app/share/applications/io.github.deeja.BatteryTesterKiosk.desktop
       - install -Dm644 flatpak/io.github.deeja.BatteryTesterKiosk.metainfo.xml /app/share/metainfo/io.github.deeja.BatteryTesterKiosk.metainfo.xml
     sources:

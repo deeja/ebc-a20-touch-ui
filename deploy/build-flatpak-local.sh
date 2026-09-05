@@ -9,6 +9,13 @@
 # flags come from (in particular --disable-rofiles-fuse, needed since FUSE
 # isn't reliably available in a container).
 #
+# Not reproduced here: the action wraps flatpak-builder in `xvfb-run
+# --auto-servernum` (for screenshot-composing/GUI-test edge cases this
+# manifest doesn't use) - confirmed hanging forever in this Docker setup
+# (Xvfb itself starts, but xvfb-run's own readiness wait never returns, so
+# flatpak-builder never even launches - zero output, indefinitely). Skipped
+# for the local build; CI still goes through the real action unchanged.
+#
 #   bash deploy/build-flatpak-local.sh          # build, then run it
 #   bash deploy/build-flatpak-local.sh --build  # build only, don't run
 #
@@ -28,10 +35,10 @@ BRANCH=master
 BUNDLE=battery-tester-kiosk-$ARCH.flatpak
 
 echo "==> Building (in $IMAGE)"
-docker run --rm --privileged  -it \
+docker run --rm --privileged \
   --volume "$REPO_DIR":/data --workdir /data \
   "$IMAGE" \
-  xvfb-run --auto-servernum flatpak-builder \
+  flatpak-builder \
     --repo=flatpak/repo \
     --disable-rofiles-fuse \
     --install-deps-from=flathub \
@@ -42,7 +49,7 @@ docker run --rm --privileged  -it \
     flatpak/builddir "$MANIFEST"
 
 echo "==> Creating bundle"
-docker run --rm --privileged -it \
+docker run --rm --privileged \
   --volume "$REPO_DIR":/data --workdir /data \
   "$IMAGE" \
   flatpak build-bundle flatpak/repo "$BUNDLE" \

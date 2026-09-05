@@ -5,6 +5,5 @@ dist/
 
 # deploy/build-flatpak-local.sh output
 /flatpak/builddir/
-/flatpak/.flatpak-builder/
-/flatpak/repo/
 *.flatpak
+flatpak/repo/
