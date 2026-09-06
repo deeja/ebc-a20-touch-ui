@@ -34,7 +34,7 @@ Run the UI in a container with its window forwarded to your X server
 (avoids installing `python3-tk`/`pyserial` locally):
 ```bash
 bash deploy/test-local-ui.sh              # normal windowed mode
-bash deploy/test-local-ui.sh --kiosk      # fullscreen/no-cursor kiosk preview
+bash deploy/test-local-ui.sh --kiosk      # fullscreen kiosk preview
 ```
 Offers to pass through a real EBC-A20's `/dev/ttyUSB*`/`/dev/ttyACM*` device
 if one is plugged in; otherwise use the in-app simulator.

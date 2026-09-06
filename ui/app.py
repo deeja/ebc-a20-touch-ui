@@ -104,7 +104,6 @@ class App(tk.Tk):
         self._fullscreen = False
 
         if os.environ.get("EBC_KIOSK"):
-            self.config(cursor="none")
             self._toggle_fullscreen(True)
         else:
             # Only bound outside kiosk mode: with no window manager on the Pi,

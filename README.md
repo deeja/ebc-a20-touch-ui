@@ -180,8 +180,8 @@ flatpak install --user ./ebc-a20-touch-ui-<arch>.flatpak
 flatpak run io.github.deeja.EbcA20TouchUi
 ```
 
-(or find it in your app menu). Fullscreen and no-cursor kiosk mode are
-baked in - nothing else to set.
+(or find it in your app menu). Fullscreen kiosk mode is baked in - nothing
+else to set.
 
 If the app can't see the port or connecting fails with a permissions error,
 your user likely needs the `dialout` group (Flatpak's sandboxing doesn't
