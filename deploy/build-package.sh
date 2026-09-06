@@ -9,14 +9,14 @@
 #   bash deploy/build-package.sh [version]
 #
 # version defaults to `git describe --tags --always` if not given (GitHub
-# Actions passes the tag name explicitly). Output: dist/battery-tester-kiosk-<version>.tar.gz
+# Actions passes the tag name explicitly). Output: dist/ebc-a20-touch-ui-<version>.tar.gz
 set -e
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_DIR=$(dirname "$SCRIPT_DIR")
 
 VERSION="${1:-$(cd "$REPO_DIR" && git describe --tags --always)}"
-PKG_NAME="battery-tester-kiosk-$VERSION"
+PKG_NAME="ebc-a20-touch-ui-$VERSION"
 
 DIST_DIR="$REPO_DIR/dist"
 STAGE_DIR="$DIST_DIR/$PKG_NAME"

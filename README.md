@@ -170,13 +170,13 @@ machine from the [Releases page](https://github.com/deeja/ebc-a20-touch-ui/relea
 
 ### Linux, including Raspberry Pi
 
-Download `battery-tester-kiosk-<arch>.flatpak` (`arch` one of `x86_64`/
+Download `ebc-a20-touch-ui-<arch>.flatpak` (`arch` one of `x86_64`/
 `aarch64` - a 64-bit Pi, e.g. Zero 2 W or later on a 64-bit OS; the original
 32-bit Pi Zero isn't covered, since the Flatpak freedesktop runtime doesn't
 build for armhf):
 
 ```bash
-flatpak install --user ./battery-tester-kiosk-<arch>.flatpak
+flatpak install --user ./ebc-a20-touch-ui-<arch>.flatpak
 flatpak run io.github.deeja.EbcA20TouchUi
 ```
 
@@ -195,24 +195,24 @@ then log out and back in.
 
 ### Windows
 
-Download `battery-tester-kiosk.exe`, then:
+Download `ebc-a20-touch-ui.exe`, then:
 
 ```bash
-battery-tester-kiosk.exe --kiosk
+ebc-a20-touch-ui.exe --kiosk
 ```
 
 (drop `--kiosk` for a normal windowed run)
 
 ### macOS
 
-Download and unzip `battery-tester-kiosk-macos.zip`, right-click → Open
+Download and unzip `ebc-a20-touch-ui-macos.zip`, right-click → Open
 the first time - it's an unsigned build, so Gatekeeper will otherwise
 refuse to launch it - then:
 
 ![Allow the app via the privacy and security](docs/screenshots/macos_openanyway.png)
 
 ```
-open battery-tester-kiosk.app --args --kiosk
+open ebc-a20-touch-ui.app --args --kiosk
 ```
 
 ## Development or running from the repo:

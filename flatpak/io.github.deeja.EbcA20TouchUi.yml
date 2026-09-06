@@ -2,7 +2,7 @@ app-id: io.github.deeja.EbcA20TouchUi
 runtime: org.freedesktop.Platform
 runtime-version: "25.08"
 sdk: org.freedesktop.Sdk
-command: battery-tester-kiosk
+command: ebc-a20-touch-ui
 
 # socket=x11 (not fallback-x11): Tk has no native Wayland backend, so it
 # always needs a real X11 socket, served over XWayland on a Wayland session.
@@ -76,14 +76,14 @@ modules:
         url: https://files.pythonhosted.org/packages/1e/7d/ae3f0a63f41e4d2f6cb66a5b57197850f919f59e558159a4dd3a818f5082/pyserial-3.5.tar.gz
         sha256: 3c77e014170dfffbd816e6ffc205e9842efb10be9f58ec16d3e8675b4925cddb
 
-  - name: battery-tester-kiosk
+  - name: ebc-a20-touch-ui
     buildsystem: simple
     build-commands:
-      - install -Dm755 main.py /app/share/battery-tester-kiosk/main.py
-      - cp -r ebc /app/share/battery-tester-kiosk/ebc
-      - cp -r ui /app/share/battery-tester-kiosk/ui
-      - cp -r assets /app/share/battery-tester-kiosk/assets
-      - install -Dm755 flatpak/battery-tester-kiosk /app/bin/battery-tester-kiosk
+      - install -Dm755 main.py /app/share/ebc-a20-touch-ui/main.py
+      - cp -r ebc /app/share/ebc-a20-touch-ui/ebc
+      - cp -r ui /app/share/ebc-a20-touch-ui/ui
+      - cp -r assets /app/share/ebc-a20-touch-ui/assets
+      - install -Dm755 flatpak/ebc-a20-touch-ui /app/bin/ebc-a20-touch-ui
       # flatpak-builder's icon validation caps hicolor app icons at 512x512.
       # assets/icon.png is kept at 1024x1024 (used as-is by ui/app.py's
       # window icon and PyInstaller's --add-data) - icon-512.png is a

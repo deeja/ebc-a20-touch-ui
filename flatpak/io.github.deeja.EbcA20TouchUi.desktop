@@ -2,7 +2,7 @@
 Type=Application
 Name=EBC-A20 Battery Tester
 Comment=Touchscreen UI for the ZKETECH EBC-A20 battery capacity tester
-Exec=battery-tester-kiosk
+Exec=ebc-a20-touch-ui
 Icon=io.github.deeja.EbcA20TouchUi
 Categories=Utility;Electronics;
 Terminal=false

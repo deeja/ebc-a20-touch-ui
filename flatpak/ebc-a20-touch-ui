@@ -1,7 +1,7 @@
 #!/bin/sh
-# Installed as /app/bin/battery-tester-kiosk (the manifest's `command`).
+# Installed as /app/bin/ebc-a20-touch-ui (the manifest's `command`).
 # EBC_KIOSK is baked in unconditionally, matching the old Snap packaging's
 # rationale: this packaged build only exists for kiosk deployment, unlike
 # a plain `pip install` from source (see main.py/--kiosk and ui/app.py).
 export EBC_KIOSK=1
-exec python3 /app/share/battery-tester-kiosk/main.py "$@"
+exec python3 /app/share/ebc-a20-touch-ui/main.py "$@"

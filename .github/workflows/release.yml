@@ -66,14 +66,14 @@ jobs:
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           manifest-path: flatpak/io.github.deeja.EbcA20TouchUi.yml
-          bundle: battery-tester-kiosk-${{ matrix.arch }}.flatpak
+          bundle: ebc-a20-touch-ui-${{ matrix.arch }}.flatpak
           arch: ${{ matrix.arch }}
           upload-artifact: false
 
       - name: Publish release
         uses: softprops/action-gh-release@v3
         with:
-          files: battery-tester-kiosk-${{ matrix.arch }}.flatpak
+          files: ebc-a20-touch-ui-${{ matrix.arch }}.flatpak
 
   build-windows-exe:
     needs: package
@@ -93,12 +93,12 @@ jobs:
         run: python3 deploy/write_build_info.py "$GITHUB_REF_NAME"
 
       - name: Build exe
-        run: pyinstaller --name battery-tester-kiosk --onefile --windowed --hidden-import=serial.tools.list_ports --icon=assets/icon.ico --add-data "assets/icon.png;assets" main.py
+        run: pyinstaller --name ebc-a20-touch-ui --onefile --windowed --hidden-import=serial.tools.list_ports --icon=assets/icon.ico --add-data "assets/icon.png;assets" main.py
 
       - name: Publish release
         uses: softprops/action-gh-release@v3
         with:
-          files: dist/battery-tester-kiosk.exe
+          files: dist/ebc-a20-touch-ui.exe
 
   build-macos-app:
     needs: package
@@ -117,17 +117,17 @@ jobs:
         run: python3 deploy/write_build_info.py "$GITHUB_REF_NAME"
 
       - name: Build app
-        run: pyinstaller --name battery-tester-kiosk --onefile --windowed --hidden-import=serial.tools.list_ports --icon=assets/icon.icns --add-data "assets/icon.png:assets" main.py
+        run: pyinstaller --name ebc-a20-touch-ui --onefile --windowed --hidden-import=serial.tools.list_ports --icon=assets/icon.icns --add-data "assets/icon.png:assets" main.py
 
       - name: Force light appearance (Tk doesn't repaint text color for macOS dark mode)
-        run: /usr/libexec/PlistBuddy -c "Add :NSRequiresAquaSystemAppearance bool true" dist/battery-tester-kiosk.app/Contents/Info.plist
+        run: /usr/libexec/PlistBuddy -c "Add :NSRequiresAquaSystemAppearance bool true" dist/ebc-a20-touch-ui.app/Contents/Info.plist
 
       - name: Zip app bundle
         run: |
           cd dist
-          ditto -c -k --sequesterRsrc --keepParent battery-tester-kiosk.app ../battery-tester-kiosk-macos.zip
+          ditto -c -k --sequesterRsrc --keepParent ebc-a20-touch-ui.app ../ebc-a20-touch-ui-macos.zip
 
       - name: Publish release
         uses: softprops/action-gh-release@v3
         with:
-          files: battery-tester-kiosk-macos.zip
+          files: ebc-a20-touch-ui-macos.zip

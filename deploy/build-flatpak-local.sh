@@ -32,7 +32,7 @@ APP_ID=io.github.deeja.EbcA20TouchUi
 MANIFEST=flatpak/io.github.deeja.EbcA20TouchUi.yml
 ARCH=x86_64
 BRANCH=master
-BUNDLE=battery-tester-kiosk-$ARCH.flatpak
+BUNDLE=ebc-a20-touch-ui-$ARCH.flatpak
 
 echo "==> Building (in $IMAGE)"
 docker run --rm --privileged \

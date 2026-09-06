@@ -23,7 +23,7 @@
   <launchable type="desktop-id">io.github.deeja.EbcA20TouchUi.desktop</launchable>
   <url type="homepage">https://github.com/deeja/ebc-a20-touch-ui</url>
   <provides>
-    <binary>battery-tester-kiosk</binary>
+    <binary>ebc-a20-touch-ui</binary>
   </provides>
   <content_rating type="oars-1.1"/>
 </component>
