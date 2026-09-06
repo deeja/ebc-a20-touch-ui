@@ -34,15 +34,22 @@ jobs:
           files: dist/*.tar.gz
 
   # Linux (including 64-bit Raspberry Pi) - a Flatpak for each of
-  # x86_64/aarch64. aarch64 is QEMU-emulated on the amd64 runner; fail-fast
-  # is off so one flaky arch doesn't take the other down with it. Note:
-  # the freedesktop runtime only ships x86_64/aarch64 builds, so unlike the
+  # x86_64/aarch64, each built natively on a matching-arch runner (no QEMU);
+  # fail-fast is off so one flaky arch doesn't take the other down with it.
+  # Note: the freedesktop runtime only ships x86_64/aarch64 builds, so unlike the
   # old Snap (which also had an armhf build), this doesn't cover the
   # original 32-bit Raspberry Pi Zero - only Pi Zero 2 W and other 64-bit
   # Pis running a 64-bit OS.
   build-flatpak:
     needs: package
-    runs-on: ubuntu-latest
+    # aarch64 runs on GitHub's native ARM64 hosted runner rather than
+    # x86_64 + QEMU - the flatpak-github-actions container image is
+    # multi-arch, so this pulls its arm64 manifest and builds Tcl/Tk from
+    # source at native speed. This is the reason a native-ARM build
+    # (~7-9 min, same order as x86_64) previously took ~2 hours emulated:
+    # QEMU-emulating an autotools ./configure+make from-source build is
+    # brutally slow. ARM64 runner minutes also bill cheaper than x86_64's.
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
       options: --privileged
@@ -55,23 +62,6 @@ jobs:
 
       - name: Write build info
         run: python3 deploy/write_build_info.py "$GITHUB_REF_NAME"
-
-      # Docker + QEMU setup, needed only for the emulated aarch64 build -
-      # see this action's own CI (.github/workflows/flatpak-test.yml
-      # upstream) for why the static Docker binary is fetched manually
-      # rather than assumed present in this container image.
-      - name: Install Docker (for QEMU setup)
-        if: ${{ matrix.arch != 'x86_64' }}
-        run: |
-          curl https://download.docker.com/linux/static/stable/x86_64/docker-26.0.0.tgz --output ./docker.tgz
-          tar xzvf docker.tgz
-          mv docker/* /usr/bin
-
-      - name: Set up QEMU
-        if: ${{ matrix.arch != 'x86_64' }}
-        uses: docker/setup-qemu-action@v4
-        with:
-          platforms: arm64
 
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
