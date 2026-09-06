@@ -149,7 +149,7 @@ class AboutDialog(tk.Toplevel):
 
     GITHUB_NAME = "deeja"
     PROFILE_URL = f"https://github.com/{GITHUB_NAME}"
-    REPO_URL = "https://github.com/deeja/batterytesterui"
+    REPO_URL = "https://github.com/deeja/ebc-a20-touch-ui"
 
     def __init__(self, master: tk.Misc):
         super().__init__(master, bg=PANEL_BG)

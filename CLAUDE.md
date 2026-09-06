@@ -53,7 +53,7 @@ Docker/systemd workaround required):
 bash deploy/build-flatpak-local.sh          # build, then run it
 bash deploy/build-flatpak-local.sh --build  # build only
 ```
-Builds `flatpak/io.github.deeja.BatteryTesterKiosk.yml` - the same manifest
+Builds `flatpak/io.github.deeja.EbcA20TouchUi.yml` - the same manifest
 CI uses. Leaves `flatpak/builddir` and `flatpak/.flatpak-builder` (gitignored)
 - rerun freely, or `rm -rf flatpak/builddir flatpak/.flatpak-builder` to
 start clean.
@@ -126,6 +126,6 @@ targets `org.freedesktop.Platform`, which has no Tkinter of its own: Tcl/Tk
 (CPython's own `Lib/tkinter` + `_tkinter.c` built as a standalone extension
 against those, pinned to the commit targeting this runtime's Python version)
 rather than recompiling the SDK's Python. See the inline comments in
-`flatpak/io.github.deeja.BatteryTesterKiosk.yml` before bumping
+`flatpak/io.github.deeja.EbcA20TouchUi.yml` before bumping
 `runtime-version` - that pin and the tkinter-standalone commit must move
 together, matching whatever Python version the new runtime ships.

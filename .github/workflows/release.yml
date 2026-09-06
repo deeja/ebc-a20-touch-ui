@@ -65,7 +65,7 @@ jobs:
 
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
-          manifest-path: flatpak/io.github.deeja.BatteryTesterKiosk.yml
+          manifest-path: flatpak/io.github.deeja.EbcA20TouchUi.yml
           bundle: battery-tester-kiosk-${{ matrix.arch }}.flatpak
           arch: ${{ matrix.arch }}
           upload-artifact: false

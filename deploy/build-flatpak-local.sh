@@ -28,8 +28,8 @@ set -e
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 REPO_DIR=$(dirname "$SCRIPT_DIR")
 IMAGE=ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
-APP_ID=io.github.deeja.BatteryTesterKiosk
-MANIFEST=flatpak/io.github.deeja.BatteryTesterKiosk.yml
+APP_ID=io.github.deeja.EbcA20TouchUi
+MANIFEST=flatpak/io.github.deeja.EbcA20TouchUi.yml
 ARCH=x86_64
 BRANCH=master
 BUNDLE=battery-tester-kiosk-$ARCH.flatpak

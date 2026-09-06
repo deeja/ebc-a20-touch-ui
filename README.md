@@ -166,7 +166,7 @@ enkiusz gist.
 ## Installing
 
 No specific OS assumed - grab whichever of these matches your kiosk
-machine from the [Releases page](https://github.com/deeja/batterytesterui/releases):
+machine from the [Releases page](https://github.com/deeja/ebc-a20-touch-ui/releases):
 
 ### Linux, including Raspberry Pi
 
@@ -177,7 +177,7 @@ build for armhf):
 
 ```bash
 flatpak install --user ./battery-tester-kiosk-<arch>.flatpak
-flatpak run io.github.deeja.BatteryTesterKiosk
+flatpak run io.github.deeja.EbcA20TouchUi
 ```
 
 (or find it in your app menu). Fullscreen and no-cursor kiosk mode are
@@ -237,4 +237,4 @@ Other dependencies, beyond what `pip install` covers:
   `.github/workflows/release.yml` for the exact build command.
 - **flatpak** and **flatpak-builder** - only needed to build the Linux
   `.flatpak` yourself instead of grabbing one from Releases; see
-  `deploy/build-flatpak-local.sh` and `flatpak/io.github.deeja.BatteryTesterKiosk.yml`.
+  `deploy/build-flatpak-local.sh` and `flatpak/io.github.deeja.EbcA20TouchUi.yml`.

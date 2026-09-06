@@ -2,7 +2,7 @@
 # Builds the downloadable source package: a .tar.gz containing just the
 # app (main.py, requirements.txt, README.md, ebc/, ui/, assets/) - for anyone who'd
 # rather `pip install -r requirements.txt` and run from source than use a
-# packaged build (see flatpak/io.github.deeja.BatteryTesterKiosk.yml for the
+# packaged build (see flatpak/io.github.deeja.EbcA20TouchUi.yml for the
 # Flatpak, and the PyInstaller jobs in .github/workflows/release.yml for the
 # Windows/macOS builds).
 #
