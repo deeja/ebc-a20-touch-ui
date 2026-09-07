@@ -57,6 +57,14 @@ class WarningScreen(tk.Frame):
             padx=10, pady=10,
         ).pack(pady=(20, 0))
 
+        self._calibrated_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            self, text="The charger is calibrated", variable=self._calibrated_var,
+            command=self._refresh_continue_state, font=("TkDefaultFont", 12, "bold"), bg=BG, fg=TEXT,
+            activebackground=BG, activeforeground=TEXT, selectcolor=PANEL_BG,
+            padx=10, pady=10,
+        ).pack(pady=(0, 0))
+
         self._dont_remind_var = tk.BooleanVar(value=False)
         tk.Checkbutton(
             self, text="Don't remind me again about the dangers",
@@ -70,7 +78,8 @@ class WarningScreen(tk.Frame):
         self._refresh_continue_state()
 
     def _refresh_continue_state(self) -> None:
-        self._continue_btn.config(state=tk.NORMAL if self._understand_var.get() else tk.DISABLED)
+        ready = self._understand_var.get() and self._calibrated_var.get()
+        self._continue_btn.config(state=tk.NORMAL if ready else tk.DISABLED)
 
     def _continue(self) -> None:
         if self._dont_remind_var.get():
