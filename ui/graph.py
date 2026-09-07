@@ -4,12 +4,14 @@ decimated to the canvas width and throttled by the caller (app.py) rather
 than on every sample, since redrawing a long polyline every frame is the
 kind of thing that makes a Pi Zero feel broken.
 
-Tapping the chart opens a touch popup to pick how the time axis behaves
-(a scrolling window of a chosen width, or "Fit All" to show the whole
-run) - that choice is remembered across restarts via ui/prefs.py.
-Dragging a finger/mouse across the chart instead shows a value tooltip
-and crosshair for the nearest sample - drag vs. tap is disambiguated by
-a small movement threshold so a plain tap still opens the popup."""
+Double-tapping the chart opens a touch popup to pick how the time axis
+behaves (a scrolling window of a chosen width, or "Fit All" to show the
+whole run) - that choice is remembered across restarts via ui/prefs.py.
+Double-tap rather than a single tap so a stray touch while watching a
+live test doesn't accidentally pop up the menu. Dragging a finger/mouse
+across the chart instead shows a value tooltip and crosshair for the
+nearest sample - a single tap alone (no drag, no second tap) does
+nothing."""
 from __future__ import annotations
 
 import csv
@@ -128,6 +130,7 @@ class DualLineGraph(tk.Canvas):
         self.bind("<ButtonPress-1>", self._on_press)
         self.bind("<B1-Motion>", self._on_drag)
         self.bind("<ButtonRelease-1>", self._on_release)
+        self.bind("<Double-Button-1>", self._on_double_tap)
 
     def add_sample(self, t: float, voltage_v: float, current_a: float, capacity_mah: float) -> None:
         self._points.append((t, voltage_v, current_a, capacity_mah, time.time()))
@@ -171,7 +174,7 @@ class DualLineGraph(tk.Canvas):
     def set_test_info(self, mode: str, preset_key: str) -> None:
         self.test_label = f"{mode}_{preset_key}" if mode else ""
 
-    # -- tap (open view options) vs. drag (tooltip) -------------------------
+    # -- double-tap (open view options) vs. drag (tooltip) ------------------
     def _on_press(self, event) -> None:
         self._press_xy = (event.x, event.y)
         self._dragging = False
@@ -190,8 +193,8 @@ class DualLineGraph(tk.Canvas):
         if self._press_xy is None:
             # A release with no matching press on this canvas - e.g. the tail
             # end of a click on the view-options popup that closed mid-click
-            # (its grab let go, so this release leaked through to the chart).
-            # Not a real tap, so don't reopen the popup.
+            # (its grab let go, so this release leaked through to the chart)
+            # - ignore it rather than treat it as a real tap/drag end.
             return
         was_dragging = self._dragging
         self._press_xy = None
@@ -199,8 +202,15 @@ class DualLineGraph(tk.Canvas):
         self._drag_x = None
         if was_dragging:
             self.redraw()
-        else:
-            self._on_tap(event)
+        # A plain single tap (no drag) does nothing on its own - opening the
+        # view options menu needs a second tap, see _on_double_tap, so an
+        # accidental touch while watching a live test doesn't pop it up.
+
+    def _on_double_tap(self, event) -> None:
+        self._press_xy = None
+        self._dragging = False
+        self._drag_x = None
+        self._on_tap(event)
 
     def _on_tap(self, _event=None) -> None:
         GraphViewDialog(self, self)
@@ -281,7 +291,7 @@ class DualLineGraph(tk.Canvas):
         self.create_line(*a_line, fill=CURRENT_COLOR, width=4)
         self.create_line(*cap_line, fill=CAPACITY_COLOR, width=4)
 
-        self.create_text(w / 2, 8, text="tap chart for view options, drag for values", fill=HINT_TEXT_COLOR,
+        self.create_text(w / 2, 8, text="double-tap chart for view options, drag for values", fill=HINT_TEXT_COLOR,
                           anchor="n", font=self._font_hint)
 
         self._last_pts = pts
@@ -349,12 +359,16 @@ class DualLineGraph(tk.Canvas):
 
 
 class GraphViewDialog(tk.Toplevel):
-    """Touch popup opened by tapping the chart: pick a scrolling time
-    window, jump to Fit All, or clear the saved view choice.
+    """Touch popup opened by double-tapping the chart: pick a scrolling
+    time window, jump to Fit All, or clear the saved view choice.
 
     Follows the same show/center/grab_set ordering as NumpadDialog
     (widgets.py) - grabbing input before the window is viewable is what
-    made the app appear to freeze there, so the same care applies here."""
+    made the app appear to freeze there, so the same care applies here.
+    Fully modal like the app's other dialogs (ConfirmDialog/InfoDialog/
+    NumpadDialog): only the explicit "Close" button (or Export/Clear
+    Graph, which also dismiss it) closes it - no tap-outside-to-dismiss,
+    so an accidental touch elsewhere on screen can't lose the open menu."""
 
     def __init__(self, master: tk.Misc, graph: DualLineGraph):
         super().__init__(master, bg=PANEL_BG)
@@ -395,16 +409,6 @@ class GraphViewDialog(tk.Toplevel):
         self.lift()
         self.focus_force()
         self.grab_set()
-        # While the grab is active, a click anywhere outside this window gets
-        # redirected here rather than reaching whatever's actually under it
-        # (e.g. the chart) - catch that and treat it as "tap outside to close".
-        self.bind("<Button-1>", self._on_click_outside)
-
-    def _on_click_outside(self, event) -> None:
-        x, y = self.winfo_rootx(), self.winfo_rooty()
-        w, h = self.winfo_width(), self.winfo_height()
-        if not (x <= event.x_root <= x + w and y <= event.y_root <= y + h):
-            self.destroy()
 
     def _open_window_numpad(self) -> None:
         NumpadDialog(self, "SCROLL WINDOW", WINDOW_UNITS, self._on_window_numpad_accept)
