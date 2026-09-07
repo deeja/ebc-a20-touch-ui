@@ -20,6 +20,7 @@ from .raw_screen import RawScreen
 from .settings_screen import SettingsScreen
 from .warning_screen import WarningScreen, warning_acknowledged
 from .widgets import (
+    ACCENT_AMBER,
     ACCENT_BLUEGREY,
     ACCENT_GREEN,
     ACCENT_RED,
@@ -42,6 +43,16 @@ from .widgets import (
 # read the real screen size at runtime so this also runs windowed on a dev
 # machine.
 DEFAULT_W, DEFAULT_H = 1024, 600
+
+# STATUS readout tile colors, keyed by ebc.protocol.charge_direction()'s
+# result - a bright amber (not white-on-amber, for contrast) rather than the
+# app's usual accent shades for "idle", since it's a distinct third state
+# rather than a variant of charging/discharging.
+STATUS_TILE_COLORS = {
+    "charging": (ACCENT_GREEN, "white"),
+    "discharging": (ACCENT_RED, "white"),
+    "idle": (ACCENT_AMBER, TEXT),
+}
 
 
 def _resource_path(*parts: str) -> str:
@@ -381,6 +392,7 @@ class MainScreen(tk.Frame):
         self._set_sequencer_text("")
         self._set_warning_text("")
         self.tile_status.set("--")
+        self.tile_status.set_colors(PANEL_BG, TEXT)
         self._last_drawn_count = -1
         self._last_control_state = None
         self._refresh_controls()
@@ -474,6 +486,8 @@ class MainScreen(tk.Frame):
         self.tile_current.set(f"{sample.current_a:.1f} A")
         self.tile_capacity.set(f"{sample.capacity_mah} mAh")
         self.tile_status.set(sample.status_text)
+        bg, fg = STATUS_TILE_COLORS[protocol.charge_direction(sample.status_code)]
+        self.tile_status.set_colors(bg, fg)
         if self.sequencer is not None:
             self.sequencer.on_sample(sample)
 

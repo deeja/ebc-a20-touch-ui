@@ -27,6 +27,7 @@ ACCENT_RED = "#c62828"
 ACCENT_RED_ACTIVE = "#d32f2f"
 ACCENT_BLUEGREY = "#546e7a"
 ACCENT_BLUEGREY_ACTIVE = "#62828e"
+ACCENT_AMBER = "#f9a825"
 
 # Charge vs. discharge background tints (Settings screen mode/phase sections).
 CHARGE_BG = "#e8f5e9"
@@ -440,9 +441,23 @@ class TouchNumberField(tk.Frame):
 class ReadoutTile(tk.Frame):
     def __init__(self, master, label: str, **kw):
         super().__init__(master, bg=PANEL_BG, **kw)
-        tk.Label(self, text=label, font=FONT_SMALL, bg=PANEL_BG, fg=TEXT_MUTED).pack(anchor="w", padx=10, pady=(8, 0))
+        self.caption_label = tk.Label(self, text=label, font=FONT_SMALL, bg=PANEL_BG, fg=TEXT_MUTED)
+        self.caption_label.pack(anchor="w", padx=10, pady=(8, 0))
         self.value_label = tk.Label(self, text="--", font=FONT_LARGE, bg=PANEL_BG, fg=TEXT)
         self.value_label.pack(anchor="w", padx=10, pady=(0, 8))
+        self._bg = PANEL_BG
 
     def set(self, text: str) -> None:
         self.value_label.config(text=text)
+
+    def set_colors(self, bg: str, fg: str) -> None:
+        """Recolor the whole tile as a block (frame + both labels) - used by
+        the STATUS tile to signal charging/idle/discharging at a glance.
+        No-ops when bg is already current, since this is called every poll
+        tick regardless of whether the state actually changed."""
+        if bg == self._bg:
+            return
+        self._bg = bg
+        self.config(bg=bg)
+        self.caption_label.config(bg=bg, fg=fg)
+        self.value_label.config(bg=bg, fg=fg)

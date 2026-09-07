@@ -93,9 +93,26 @@ FINISHED_STATUS = {
 # 0x6E-0x70 codes above).
 ACTIVE_STATUS_CODES = {0x0A, 0x0B, 0x0C, 0x6E, 0x6F, 0x70}
 
+# Split of ACTIVE_STATUS_CODES by direction - used by the UI to color-code
+# the live status readout (e.g. green while charging, red while discharging).
+# A "Finished" code isn't in either set - the leg has stopped drawing/pushing
+# current by then, so it reads as idle, same as before the test started.
+CHARGING_STATUS_CODES = {0x0C, 0x70}
+DISCHARGING_STATUS_CODES = {0x0A, 0x0B, 0x6E, 0x6F}
+
 
 def is_active_status(code: int) -> bool:
     return code in ACTIVE_STATUS_CODES
+
+
+def charge_direction(code: int) -> str:
+    """"charging", "discharging", or "idle" (covers both a genuinely idle
+    code and a finished/unknown one) for the given status code."""
+    if code in CHARGING_STATUS_CODES:
+        return "charging"
+    if code in DISCHARGING_STATUS_CODES:
+        return "discharging"
+    return "idle"
 
 
 def encode_base240(value: int) -> tuple[int, int]:
