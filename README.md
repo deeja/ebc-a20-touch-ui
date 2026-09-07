@@ -153,6 +153,10 @@ sudo usermod -aG dialout $USER
 
 then log out and back in.
 
+To make a Raspberry Pi boot straight into this app in fullscreen kiosk mode
+instead of the standard desktop, see
+[docs/raspberry-pi-kiosk.md](docs/raspberry-pi-kiosk.md).
+
 ### Windows
 
 Download `ebc-a20-touch-ui.exe`, then:
