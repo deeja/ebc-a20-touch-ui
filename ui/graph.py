@@ -16,6 +16,7 @@ import csv
 import math
 import time
 import tkinter as tk
+import tkinter.font as tkfont
 from collections import deque
 from datetime import datetime
 
@@ -91,6 +92,13 @@ class DualLineGraph(tk.Canvas):
         self.fit_all = True
         self.y_zero_based = False
         self._load_view_settings()
+
+        # Resolved once rather than passing raw ("TkDefaultFont", N) tuples
+        # into create_text() on every redraw - Tk re-parses a tuple spec
+        # into a font object on every call otherwise, which adds up across
+        # the many labels drawn per redraw on slow hardware.
+        self._font_hint = tkfont.Font(family="TkDefaultFont", size=8)
+        self._font_overlay = tkfont.Font(family="TkDefaultFont", size=9)
 
         # Current test mode/battery preset (e.g. "DSC_CC", "liion") - set by
         # the caller (app.py, which knows about TestConfig) via
@@ -269,12 +277,12 @@ class DualLineGraph(tk.Canvas):
             a_line += [x, y_of(a, a_lo, a_hi)]
             cap_line += [x, y_of(cap, cap_lo, cap_hi)]
 
-        self.create_line(*v_line, fill=VOLTAGE_COLOR, width=4, smooth=True)
-        self.create_line(*a_line, fill=CURRENT_COLOR, width=4, smooth=True)
-        self.create_line(*cap_line, fill=CAPACITY_COLOR, width=4, smooth=True)
+        self.create_line(*v_line, fill=VOLTAGE_COLOR, width=4)
+        self.create_line(*a_line, fill=CURRENT_COLOR, width=4)
+        self.create_line(*cap_line, fill=CAPACITY_COLOR, width=4)
 
         self.create_text(w / 2, 8, text="tap chart for view options, drag for values", fill=HINT_TEXT_COLOR,
-                          anchor="n", font=("TkDefaultFont", 8))
+                          anchor="n", font=self._font_hint)
 
         self._last_pts = pts
         self._last_t_min, self._last_t_max = t_min, t_max
@@ -290,7 +298,7 @@ class DualLineGraph(tk.Canvas):
             y = MARGIN_T + plot_h - (val - lo) / span * plot_h
             self.create_line(MARGIN_L, y, MARGIN_L + plot_w, y, fill=line_color)
             label = f"{val:.{decimals}f}{unit_label}"
-            self.create_text(label_x, y, text=label, fill=text_color, anchor=anchor, font=("TkDefaultFont", 8))
+            self.create_text(label_x, y, text=label, fill=text_color, anchor=anchor, font=self._font_hint)
 
     def _draw_time_grid(self, plot_w, plot_h, t_min, t_max) -> None:
         cols = 4
@@ -299,7 +307,7 @@ class DualLineGraph(tk.Canvas):
             self.create_line(x, MARGIN_T, x, MARGIN_T + plot_h, fill=GRID_COLOR)
             t_val = t_min + (t_max - t_min) * i / cols
             self.create_text(x, MARGIN_T + plot_h + 4, text=_format_elapsed(t_val), fill=AXIS_TEXT_COLOR,
-                              anchor="n", font=("TkDefaultFont", 8))
+                              anchor="n", font=self._font_hint)
         self.create_rectangle(MARGIN_L, MARGIN_T, MARGIN_L + plot_w, MARGIN_T + plot_h, outline=GRID_COLOR)
 
     def _update_overlay(self, x: int) -> None:
@@ -329,7 +337,7 @@ class DualLineGraph(tk.Canvas):
         tx = x - 8 if right_side else x + 8
         ty = MARGIN_T + 6
 
-        label = self.create_text(tx, ty, text=text, fill=TEXT, anchor=anchor, font=("TkDefaultFont", 9), justify="left")
+        label = self.create_text(tx, ty, text=text, fill=TEXT, anchor=anchor, font=self._font_overlay, justify="left")
         bbox = self.bbox(label)
         if bbox:
             pad = 4

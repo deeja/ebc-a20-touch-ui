@@ -129,10 +129,18 @@ class App(tk.Tk):
         self.main_screen.on_shown()
 
     def show_settings(self) -> None:
+        # The graph canvas isn't visible while Settings is on top, so its
+        # redraw work (full delete+rebuild) is pure waste until show_main()
+        # restarts it via MainScreen.on_shown() - but keep _drain_queue
+        # running: it's cheap (see MainScreen._refresh_controls's no-op
+        # skip) and RawScreen relies on it to keep capturing frames even
+        # when the Raw screen isn't the active one.
+        self.main_screen._pause_graph_redraw()
         self.settings_screen.on_shown()
         self.settings_screen.lift()
 
     def show_raw(self) -> None:
+        self.main_screen._pause_graph_redraw()
         self.raw_screen.on_shown()
         self.raw_screen.lift()
 
@@ -261,6 +269,8 @@ class MainScreen(tk.Frame):
         self.app = app
         self._t0 = None
         self._last_sample = None
+        self._last_drawn_count = -1
+        self._last_control_state = None
 
         top = tk.Frame(self, bg=BG)
         top.pack(fill="x", padx=10, pady=(8, 4))
@@ -354,6 +364,8 @@ class MainScreen(tk.Frame):
         self._set_sequencer_text("")
         self._set_warning_text("")
         self.tile_status.set("--")
+        self._last_drawn_count = -1
+        self._last_control_state = None
         self._refresh_controls()
         self._poll_job = self.after(self.POLL_MS, self._drain_queue)
         self._redraw_job = self.after(self.REDRAW_MS, self._redraw_loop)
@@ -364,8 +376,12 @@ class MainScreen(tk.Frame):
         return self._last_sample is not None and protocol.is_active_status(self._last_sample.status_code)
 
     def _refresh_controls(self) -> None:
-        running = self._is_running()
-        self.start_btn.config(state=tk.NORMAL if (self.app.is_configured and not running) else tk.DISABLED)
+        state = (self._is_running(), self.app.is_configured)
+        if state == self._last_control_state:
+            return
+        self._last_control_state = state
+        running, is_configured = state
+        self.start_btn.config(state=tk.NORMAL if (is_configured and not running) else tk.DISABLED)
         self.configure_btn.config(state=tk.DISABLED if running else tk.NORMAL)
 
     def open_settings(self) -> None:
@@ -389,6 +405,12 @@ class MainScreen(tk.Frame):
             if job is not None:
                 self.after_cancel(job)
             setattr(self, attr, None)
+
+    def _pause_graph_redraw(self) -> None:
+        job = getattr(self, "_redraw_job", None)
+        if job is not None:
+            self.after_cancel(job)
+        self._redraw_job = None
 
     def _drain_queue(self) -> None:
         device = self.app.device
@@ -442,7 +464,10 @@ class MainScreen(tk.Frame):
         if self.app.device is None:
             self._redraw_job = None
             return
-        self.graph.redraw()
+        count = len(self.graph._points)
+        if count != self._last_drawn_count:
+            self._last_drawn_count = count
+            self.graph.redraw()
         self._redraw_job = self.after(self.REDRAW_MS, self._redraw_loop)
 
     @staticmethod

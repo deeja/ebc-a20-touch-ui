@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import tkinter as tk
+import tkinter.font as tkfont
 from datetime import datetime
 
 from ebc.protocol import RawFrame
@@ -59,6 +60,13 @@ class RawLogView(tk.Canvas):
         self._scroll_top = 0
         self._drag_start_y: int | None = None
         self._drag_start_top = 0
+        self._last_redraw_sig: tuple | None = None
+
+        # Resolved once rather than passing raw font tuples into
+        # create_text() on every redraw - see ui/graph.py's DualLineGraph
+        # for the same reasoning.
+        self._font_header = tkfont.Font(family="TkFixedFont", size=9, weight="bold")
+        self._font_row = tkfont.Font(family="TkFixedFont", size=9)
 
         self.bind("<Configure>", lambda e: self.redraw())
         self.bind("<Button-4>", lambda e: self._scroll_by(-WHEEL_ROWS_PER_NOTCH))
@@ -117,7 +125,6 @@ class RawLogView(tk.Canvas):
         return f"short frame ({len(record.payload)}b)", ERROR_COLOR
 
     def redraw(self) -> None:
-        self.delete("all")
         w = self.winfo_width()
         h = self.winfo_height()
         if w < 10 or h < 10:
@@ -128,10 +135,20 @@ class RawLogView(tk.Canvas):
             self._scroll_top = self._max_scroll_top()
         self._scroll_top = max(0, min(self._max_scroll_top(), self._scroll_top))
 
+        # Nothing about what would be drawn has changed since last time (no
+        # new records, no scroll/resize) - skip the delete+rebuild. Redraws
+        # driven by RawScreen's periodic loop are the common case this
+        # matters for, since most ticks land between new frames arriving.
+        sig = (len(self.records), self._scroll_top, w, h)
+        if sig == self._last_redraw_sig:
+            return
+        self._last_redraw_sig = sig
+
+        self.delete("all")
         self.create_rectangle(0, 0, w, HEADER_H, fill=HEADER_BG, outline=GRID_COLOR)
-        self.create_text(TIME_X, HEADER_H / 2, text="TIME", anchor="w", font=("TkFixedFont", 9, "bold"), fill=TEXT_MUTED)
-        self.create_text(HEX_X, HEADER_H / 2, text="HEX", anchor="w", font=("TkFixedFont", 9, "bold"), fill=TEXT_MUTED)
-        self.create_text(DECODED_X, HEADER_H / 2, text="DECODED", anchor="w", font=("TkFixedFont", 9, "bold"), fill=TEXT_MUTED)
+        self.create_text(TIME_X, HEADER_H / 2, text="TIME", anchor="w", font=self._font_header, fill=TEXT_MUTED)
+        self.create_text(HEX_X, HEADER_H / 2, text="HEX", anchor="w", font=self._font_header, fill=TEXT_MUTED)
+        self.create_text(DECODED_X, HEADER_H / 2, text="DECODED", anchor="w", font=self._font_header, fill=TEXT_MUTED)
 
         for i in range(visible):
             idx = self._scroll_top + i
@@ -142,12 +159,12 @@ class RawLogView(tk.Canvas):
             if i % 2 == 1:
                 self.create_rectangle(0, y, w, y + ROW_H, fill="#f7f7f7", outline="")
             ts = datetime.fromtimestamp(record.timestamp).strftime("%H:%M:%S.%f")[:-3]
-            self.create_text(TIME_X, y + ROW_H / 2, text=ts, anchor="w", font=("TkFixedFont", 9), fill=TEXT)
+            self.create_text(TIME_X, y + ROW_H / 2, text=ts, anchor="w", font=self._font_row, fill=TEXT)
             hex_text = record.payload.hex(" ").upper()
-            self.create_text(HEX_X, y + ROW_H / 2, text=hex_text, anchor="w", font=("TkFixedFont", 9), fill=HEX_COLOR)
+            self.create_text(HEX_X, y + ROW_H / 2, text=hex_text, anchor="w", font=self._font_row, fill=HEX_COLOR)
             decoded_text, decoded_color = self._decoded_text(record)
             self.create_text(DECODED_X, y + ROW_H / 2, text=decoded_text, anchor="w",
-                              font=("TkFixedFont", 9), fill=decoded_color)
+                              font=self._font_row, fill=decoded_color)
 
         total = len(self.records)
         if total > visible:
