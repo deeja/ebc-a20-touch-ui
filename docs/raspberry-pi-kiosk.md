@@ -17,6 +17,8 @@ Tested on a Raspberry Pi Zero 2 W running Raspberry Pi OS (Debian 13
 
 ## Prerequisites
 
+- Install the Raspberry Pi 64bit **with Desktop** if using the Rpi Zero 2 as this seems to be the only supported image now. 
+
 - The Flatpak is already installed, per [the main install instructions](../README.md#linux-including-raspberry-pi):
   ```bash
   flatpak install --user ./ebc-a20-touch-ui-<arch>.flatpak

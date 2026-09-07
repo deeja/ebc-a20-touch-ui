@@ -128,7 +128,11 @@ CONTINUE commands exist in the protocol but aren't wired up).
 No specific OS assumed - grab whichever of these matches your kiosk
 machine from the [Releases page](https://github.com/deeja/ebc-a20-touch-ui/releases):
 
-### Linux, including Raspberry Pi
+### Raspberry Pi Kiosk (Zero 2 +)
+
+See [docs/raspberry-pi-kiosk.md](docs/raspberry-pi-kiosk.md).
+
+### Linux
 
 Download `ebc-a20-touch-ui-<arch>.flatpak` (`arch` one of `x86_64`/
 `aarch64` - a 64-bit Pi, e.g. Zero 2 W or later on a 64-bit OS; the original
@@ -152,10 +156,6 @@ sudo usermod -aG dialout $USER
 ```
 
 then log out and back in.
-
-To make a Raspberry Pi boot straight into this app in fullscreen kiosk mode
-instead of the standard desktop, see
-[docs/raspberry-pi-kiosk.md](docs/raspberry-pi-kiosk.md).
 
 ### Windows
 
