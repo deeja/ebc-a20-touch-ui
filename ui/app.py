@@ -158,6 +158,14 @@ class AboutDialog(tk.Toplevel):
     PROFILE_URL = f"https://github.com/{GITHUB_NAME}"
     REPO_URL = "https://github.com/deeja/ebc-a20-touch-ui"
 
+    # The serial protocol (ebc/protocol.py) is reverse-engineered from these
+    # two public write-ups - same shoutout as README.md's "thanks heaps!"
+    # section, credited here too since most kiosk users never see the README.
+    CREDITS = [
+        ("enkiusz's EBC-A20 gist", "https://gist.github.com/enkiusz/6408645efd622b8a638a14957cd37f47"),
+        ("Kazhuu/ebc-battery-tester", "https://github.com/Kazhuu/ebc-battery-tester"),
+    ]
+
     def __init__(self, master: tk.Misc):
         super().__init__(master, bg=PANEL_BG)
         self.overrideredirect(True)
@@ -177,6 +185,14 @@ class AboutDialog(tk.Toplevel):
                          fg=SELECTED_BORDER, cursor="hand2")
         link.pack(anchor="w", pady=(6, 0))
         link.bind("<Button-1>", self._open_repo)
+
+        tk.Label(info, text="Protocol reverse-engineered by:", font=FONT_SMALL, bg=PANEL_BG, fg=TEXT_MUTED) \
+            .pack(anchor="w", pady=(10, 0))
+        for label, url in self.CREDITS:
+            credit_link = tk.Label(info, text=label, font=FONT_SMALL, bg=PANEL_BG,
+                                    fg=SELECTED_BORDER, cursor="hand2")
+            credit_link.pack(anchor="w")
+            credit_link.bind("<Button-1>", lambda _e, u=url: webbrowser.open(u))
 
         version_text = f"Version {build_info.VERSION}" if build_info.VERSION else "Version unknown"
         tk.Label(info, text=version_text, font=FONT_SMALL, bg=PANEL_BG, fg=TEXT_MUTED) \
