@@ -374,6 +374,7 @@ class GraphViewDialog(tk.Toplevel):
     def __init__(self, master: tk.Misc, graph: DualLineGraph):
         super().__init__(master, bg=PANEL_BG)
         self.overrideredirect(True)
+        self.withdraw()
         self._graph = graph
 
         top_row = tk.Frame(self, bg=PANEL_BG)

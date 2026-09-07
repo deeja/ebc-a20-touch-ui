@@ -221,11 +221,14 @@ class NumpadDialog(tk.Toplevel):
     confirm/accept in one tap (or a single "OK" button when the field has
     no unit choice).
 
-    Ordering here matters: the window is positioned and made visible BEFORE
-    grab_set()/focus_force() are called. Grabbing input on a window that
-    isn't viewable yet is what caused the whole app to appear to freeze
-    (all input got captured by a dialog that wasn't actually showing/
-    focused) - this is the standard safe sequence for a Tk modal dialog."""
+    Ordering here matters: withdraw() immediately, before any children are
+    packed, so the window never gets a chance to auto-map at its default
+    top-left-ish spot and visibly jump from there to centered; then the
+    window is positioned and made visible (deiconify) BEFORE grab_set()/
+    focus_force() are called. Grabbing input on a window that isn't
+    viewable yet is what caused the whole app to appear to freeze (all
+    input got captured by a dialog that wasn't actually showing/focused)
+    - this is the standard safe sequence for a Tk modal dialog."""
 
     def __init__(self, master: tk.Misc, title: str, unit_options: list[tuple[str, float]],
                  on_accept: Callable[[float, float], None]):
@@ -236,6 +239,10 @@ class NumpadDialog(tk.Toplevel):
         # across window managers, which showed up as an overlay glitch between
         # the chart menu and this numpad.
         self.overrideredirect(True)
+        # Stay hidden until centered - an override-redirect Toplevel maps
+        # itself at a default top-left-ish spot the instant its children are
+        # packed, so without this it visibly jumps from there to centered.
+        self.withdraw()
         self._on_accept = on_accept
         self._text = ""
 
@@ -273,6 +280,7 @@ class NumpadDialog(tk.Toplevel):
 
         self.transient(master.winfo_toplevel())
         self._center_on(master.winfo_toplevel())
+        self.deiconify()
         self.lift()
         self.focus_force()
         self.grab_set()
@@ -322,6 +330,7 @@ class ConfirmDialog(tk.Toplevel):
                  confirm_label: str = "Confirm"):
         super().__init__(master, bg=PANEL_BG)
         self.overrideredirect(True)
+        self.withdraw()
         self._on_confirm = on_confirm
 
         tk.Label(self, text=message, font=FONT_MED, bg=PANEL_BG, fg=TEXT,
@@ -352,6 +361,7 @@ class InfoDialog(tk.Toplevel):
     def __init__(self, master: tk.Misc, message: str):
         super().__init__(master, bg=PANEL_BG)
         self.overrideredirect(True)
+        self.withdraw()
 
         tk.Label(self, text=message, font=FONT_MED, bg=PANEL_BG, fg=TEXT,
                  wraplength=260, justify="center").pack(padx=20, pady=(20, 14))
@@ -365,6 +375,10 @@ class InfoDialog(tk.Toplevel):
 
 
 def center_on_parent(win: tk.Toplevel, root: tk.Misc) -> None:
+    """Position win over root, then reveal it. Callers must withdraw() win
+    right after construction (before packing any children) - otherwise it
+    auto-maps at a default top-left-ish spot the moment its children are
+    packed, and visibly jumps from there to here when this repositions it."""
     win.update_idletasks()
     w, h = win.winfo_reqwidth(), win.winfo_reqheight()
     rx, ry = root.winfo_rootx(), root.winfo_rooty()
@@ -372,6 +386,7 @@ def center_on_parent(win: tk.Toplevel, root: tk.Misc) -> None:
     x = rx + max(0, (rw - w) // 2)
     y = ry + max(0, (rh - h) // 2)
     win.geometry(f"{w}x{h}+{x}+{y}")
+    win.deiconify()
 
 
 class TouchNumberField(tk.Frame):

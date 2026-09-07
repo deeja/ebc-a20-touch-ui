@@ -169,6 +169,7 @@ class AboutDialog(tk.Toplevel):
     def __init__(self, master: tk.Misc):
         super().__init__(master, bg=PANEL_BG)
         self.overrideredirect(True)
+        self.withdraw()
 
         tk.Label(self, text="EBC-A20 Battery Tester", font=FONT_MED, bg=PANEL_BG, fg=TEXT) \
             .pack(padx=24, pady=(20, 10))
