@@ -99,8 +99,9 @@ class DualLineGraph(tk.Canvas):
         # into create_text() on every redraw - Tk re-parses a tuple spec
         # into a font object on every call otherwise, which adds up across
         # the many labels drawn per redraw on slow hardware.
-        self._font_hint = tkfont.Font(family="TkDefaultFont", size=8)
-        self._font_overlay = tkfont.Font(family="TkDefaultFont", size=9)
+        self._font_axis = tkfont.Font(family="TkDefaultFont", size=8)
+        self._font_top_hint = tkfont.Font(family="TkDefaultFont", size=11)
+        self._font_overlay = tkfont.Font(family="TkDefaultFont", size=27)
 
         # Current test mode/battery preset (e.g. "DSC_CC", "liion") - set by
         # the caller (app.py, which knows about TestConfig) via
@@ -255,9 +256,9 @@ class DualLineGraph(tk.Canvas):
             step = len(plot_pts) // plot_w
             plot_pts = plot_pts[::step]
 
-        v_ticks, v_decimals = _axis_ticks(v_min, v_max, self.y_zero_based)
-        a_ticks, a_decimals = _axis_ticks(a_min, a_max, self.y_zero_based)
-        cap_ticks, cap_decimals = _axis_ticks(cap_min, cap_max, self.y_zero_based, whole_only=True)
+        v_ticks, v_decimals = _axis_ticks(v_min, v_max, self.y_zero_based, min_span=1.0, center_offset=-0.10)
+        a_ticks, a_decimals = _axis_ticks(a_min, a_max, self.y_zero_based, min_span=1.0, center_offset=0.10)
+        cap_ticks, cap_decimals = _axis_ticks(cap_min, cap_max, self.y_zero_based, whole_only=True, min_span=1.0)
         v_lo, v_hi = v_ticks[0], v_ticks[-1]
         a_lo, a_hi = a_ticks[0], a_ticks[-1]
         cap_lo, cap_hi = cap_ticks[0], cap_ticks[-1]
@@ -292,7 +293,7 @@ class DualLineGraph(tk.Canvas):
         self.create_line(*cap_line, fill=CAPACITY_COLOR, width=4)
 
         self.create_text(w / 2, 8, text="double-tap chart for view options, drag for values", fill=HINT_TEXT_COLOR,
-                          anchor="n", font=self._font_hint)
+                          anchor="n", font=self._font_top_hint)
 
         self._last_pts = pts
         self._last_t_min, self._last_t_max = t_min, t_max
@@ -308,7 +309,7 @@ class DualLineGraph(tk.Canvas):
             y = MARGIN_T + plot_h - (val - lo) / span * plot_h
             self.create_line(MARGIN_L, y, MARGIN_L + plot_w, y, fill=line_color)
             label = f"{val:.{decimals}f}{unit_label}"
-            self.create_text(label_x, y, text=label, fill=text_color, anchor=anchor, font=self._font_hint)
+            self.create_text(label_x, y, text=label, fill=text_color, anchor=anchor, font=self._font_axis)
 
     def _draw_time_grid(self, plot_w, plot_h, t_min, t_max) -> None:
         cols = 4
@@ -317,7 +318,7 @@ class DualLineGraph(tk.Canvas):
             self.create_line(x, MARGIN_T, x, MARGIN_T + plot_h, fill=GRID_COLOR)
             t_val = t_min + (t_max - t_min) * i / cols
             self.create_text(x, MARGIN_T + plot_h + 4, text=_format_elapsed(t_val), fill=AXIS_TEXT_COLOR,
-                              anchor="n", font=self._font_hint)
+                              anchor="n", font=self._font_axis)
         self.create_rectangle(MARGIN_L, MARGIN_T, MARGIN_L + plot_w, MARGIN_T + plot_h, outline=GRID_COLOR)
 
     def _update_overlay(self, x: int) -> None:
@@ -501,14 +502,36 @@ def _nice_step(raw_step: float) -> float:
         k += 1
 
 
-def _axis_ticks(lo: float, hi: float, zero_based: bool, whole_only: bool = False) -> tuple[list[float], int]:
+def _axis_ticks(lo: float, hi: float, zero_based: bool, whole_only: bool = False,
+                 min_span: float = 0.0, center_offset: float = 0.0) -> tuple[list[float], int]:
     """Tick values for one axis, plus how many decimal places to display
     them with. Narrow spans (below FINE_STEP_THRESHOLD_BASE) use a fixed
     one-decimal step rather than collapsing to just 2-3 whole gridlines;
     wider spans use a standard 1/2/5 x10**n "nice step", always a whole
     number. whole_only skips the one-decimal case entirely - for capacity
     (mAh), which the device already reports as a whole number, so unlike
-    V/A there's no real sub-unit precision a decimal step would add."""
+    V/A there's no real sub-unit precision a decimal step would add.
+
+    min_span floors how tight the axis is allowed to zoom in on a nearly-flat
+    signal (e.g. an idle battery's voltage barely moving) - below it, tiny
+    sensor noise fills the whole plot height and reads as a wild swing. The
+    window is widened symmetrically around the data's own midpoint, then
+    shifted up to lo=0 if that would otherwise dip negative - voltage/
+    current/capacity are never negative quantities, so neither should their
+    axis floor be.
+
+    center_offset, applied only while that floor is active, nudges the
+    window's centre by this fraction of min_span (positive = data renders
+    lower on screen, negative = higher) - so two independently-flat traces
+    sharing the same plot area (voltage and current) land at visibly
+    different heights instead of drawing directly on top of each other."""
+    if min_span > 0 and (hi - lo) < min_span:
+        mid = (lo + hi) / 2 + center_offset * min_span
+        lo = mid - min_span / 2
+        hi = mid + min_span / 2
+        if lo < 0:
+            hi -= lo
+            lo = 0.0
     eff_lo = min(0.0, lo) if zero_based else lo
     span = max(hi - eff_lo, 1e-9)
     if span < FINE_STEP_THRESHOLD_BASE and not whole_only:
